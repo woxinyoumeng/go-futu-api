@@ -1,23 +1,59 @@
 package futuapi
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"reflect"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/hurisheng/go-futu-api/protobuf/GetGlobalState"
-	"github.com/hurisheng/go-futu-api/protobuf/InitConnect"
-	"github.com/hurisheng/go-futu-api/protobuf/KeepAlive"
-	"github.com/hurisheng/go-futu-api/protobuf/Notify"
+	"github.com/hurisheng/go-futu-api/protobuf/initconnect"
+	"github.com/hurisheng/go-futu-api/protobuf/keepalive"
+	"github.com/hurisheng/go-futu-api/protocol"
+	"github.com/hurisheng/go-futu-api/tcp"
 )
+
+var (
+	ErrInterrupted   = errors.New("process is interrupted")
+	ErrChannelClosed = errors.New("channel is closed")
+)
+
+type Response interface {
+	GetRetType() int32
+	GetRetMsg() string
+	GetErrCode() int32
+}
+
+// 获取方法返回的错误信息
+type Failure struct {
+	RetMsg  string //请求失败，说明失败原因
+	ErrCode int32  //请求失败对应错误码
+}
+
+// 新建错误信息
+func NewFailure(msg string, code int32) *Failure {
+	return &Failure{
+		RetMsg:  msg,
+		ErrCode: code,
+	}
+}
+
+// 实现error接口，返回失败原因
+func (f *Failure) Error() string {
+	return f.RetMsg
+}
 
 // FutuAPI 是富途开放API的主要操作对象。
 type FutuAPI struct {
-	server *conn
+	conn *tcp.Conn
+	reg  *protocol.Registry
+
+	serial uint32
+	mu     sync.Mutex
 	ticker *time.Ticker
-	done   chan bool
+	done   chan struct{}
 }
 
 // Config 为API配置信息
@@ -30,35 +66,35 @@ type Config struct {
 // NewFutuAPI 创建API对象，并启动goroutine进行发送保活心跳.
 func NewFutuAPI(config *Config) (*FutuAPI, error) {
 	// connect socket
-	conn, err := newConn(config.Address)
+	reg := protocol.NewRegistry()
+	conn, err := tcp.Dial("tcp", config.Address, protocol.NewDecoder(reg))
 	if err != nil {
 		return nil, fmt.Errorf("connect to server error: %w", err)
 	}
 	api := &FutuAPI{
-		server: conn,
-		done:   make(chan bool),
+		conn: conn,
+		reg:  reg,
 	}
 	// init connect
-	ch, err := api.initConnect(&InitConnect.Request{
-		C2S: &InitConnect.C2S{
-			ClientVer: &config.ClientVer,
-			ClientID:  &config.ClientID,
-		},
+	resp, err := api.initConnect(context.Background(), &initconnect.C2S{
+		ClientVer: &config.ClientVer,
+		ClientID:  &config.ClientID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("call InitConnect error: %w", err)
 	}
-	api.ticker = time.NewTicker(time.Second * time.Duration((<-ch).S2C.GetKeepAliveInterval()))
+	api.ticker = time.NewTicker(time.Second * time.Duration(resp.GetKeepAliveInterval()))
 	go api.heartBeat()
 	return api, nil
 }
 
 // Close 关闭连接.
 func (api *FutuAPI) Close() error {
-	api.done <- true
-	if err := api.server.close(); err != nil {
-		return fmt.Errorf("close server error: %w", err)
+	if err := api.conn.Close(); err != nil {
+		return err
 	}
+	close(api.done)
+	api.reg.Close()
 	return nil
 }
 
@@ -70,116 +106,76 @@ func (api *FutuAPI) heartBeat() {
 			return
 		case <-api.ticker.C:
 			now := time.Now().Unix()
-			if _, err := api.keepAlive(&KeepAlive.Request{
-				C2S: &KeepAlive.C2S{
-					Time: &now,
-				},
-			}); err != nil {
+			_, err := api.keepAlive(context.Background(), &keepalive.C2S{
+				Time: &now,
+			},
+			)
+			if err != nil {
 				return
 			}
 		}
 	}
 }
 
-func (api *FutuAPI) channel(out interface{}) (reflect.Value, reflect.Type, error) {
-	// out必须为实现proto.Message接口的指针的channel
-	// 通过reflect检查out的类型是否正确
-	v, t := reflect.ValueOf(out), reflect.TypeOf(out)
-	// out must be a channel type
-	if t.Kind() != reflect.Chan {
-		return reflect.ValueOf(nil), nil, fmt.Errorf("out is not channel type")
+func (api *FutuAPI) send(proto uint32, req proto.Message, out protocol.ResponseChan) error {
+	// 递增serial
+	api.mu.Lock()
+	api.serial++
+	api.mu.Unlock()
+	// 在registry注册get channel
+	if err := api.reg.AddGetChan(proto, api.serial, out); err != nil {
+		return err
 	}
-	// it must be a channel of pointer to the response type which implements proto.Message interface
-	p := t.Elem()
-	if p.Kind() != reflect.Ptr || !p.Implements(reflect.TypeOf((*proto.Message)(nil)).Elem()) {
-		return reflect.ValueOf(nil), nil, fmt.Errorf("out is not channel of pointer to type implements interface proto.Message")
-	}
-	return v, p.Elem(), nil
-}
-
-func (api *FutuAPI) send(protoID uint32, req proto.Message, out interface{}) error {
-	// 传入的req为protobuf的数据类型，序列化后发送到服务器
-	// 传入的out为实现proto.Message接口的结构类型指针的channel，根据实际的类型创建内存空间
-	// 启动goroutine接收服务器返回的数据，并通过out channel发送
-	buf, err := proto.Marshal(req)
-	if err != nil {
-		return fmt.Errorf("marshal request error: %w", err)
-	}
-	v, t, err := api.channel(out)
-	if err != nil {
-		return fmt.Errorf("parameter validation error: %w", err)
-	}
-	in, err := api.server.send(protoID, buf)
-	if err != nil {
-		return fmt.Errorf("send request error: %w", err)
-	}
-	resp := reflect.New(t)
-	go func() {
-		if err := proto.Unmarshal(<-in, resp.Interface().(proto.Message)); err != nil {
-			v.Close()
-			return
+	// 向服务器发送req
+	if err := api.conn.Send(protocol.NewEncoder(proto, api.serial, req)); err != nil {
+		if err := api.reg.RemoveChan(proto, api.serial); err != nil {
+			return err
 		}
-		v.Send(resp)
-	}()
+		return err
+	}
 	return nil
 }
 
-func (api *FutuAPI) subscribe(protoID uint32, out interface{}) error {
-	// 传入的out为实现proto.Message接口的结构类型指针的channel，根据实际的类型创建内存空间
-	// 在goroutine中不断接收服务器返回的数据，并通过out channel发送
-	v, t, err := api.channel(out)
-	if err != nil {
-		return fmt.Errorf("parameter validation error: %w", err)
+func (api *FutuAPI) subscribe(proto uint32, out protocol.ResponseChan) error {
+	// 在registry注册update channel
+	if err := api.reg.AddUpdateChan(proto, out); err != nil {
+		return err
 	}
-	in, err := api.server.subscribe(protoID)
-	if err != nil {
-		return fmt.Errorf("subscribe error: %w", err)
-	}
-	go func() {
-		for buf := range in {
-			resp := reflect.New(t)
-			if err := proto.Unmarshal(buf, resp.Interface().(proto.Message)); err != nil {
-				break
-			}
-			v.Send(resp)
-		}
-		v.Close()
-	}()
 	return nil
 }
 
 // InitConnect 初始化连接
-func (api *FutuAPI) initConnect(req *InitConnect.Request) (<-chan *InitConnect.Response, error) {
-	out := make(chan *InitConnect.Response)
-	if err := api.send(ProtoIDInitConnect, req, out); err != nil {
-		return nil, fmt.Errorf("InitConnect error: %w", err)
+func (api *FutuAPI) initConnect(ctx context.Context, req *initconnect.C2S) (*initconnect.S2C, error) {
+	ch := initconnect.NewResponseChan()
+	if err := api.send(ProtoIDInitConnect, &initconnect.Request{C2S: req}, ch); err != nil {
+		return nil, err
 	}
-	return out, nil
+	return ch.Response()
 }
 
 // KeepAlive 保活心跳
-func (api *FutuAPI) keepAlive(req *KeepAlive.Request) (<-chan *KeepAlive.Response, error) {
-	out := make(chan *KeepAlive.Response)
-	if err := api.send(ProtoIDKeepAlive, req, out); err != nil {
-		return nil, fmt.Errorf("KeepAlive error: %w", err)
+func (api *FutuAPI) keepAlive(ctx context.Context, req *keepalive.C2S) (*keepalive.S2C, error) {
+	ch := keepalive.NewResponseChan()
+	if err := api.send(ProtoIDKeepAlive, &keepalive.Request{C2S: req}, ch); err != nil {
+		return nil, err
 	}
-	return out, nil
+	return ch.Response()
 }
 
-// GetGlobalState 获取全局状态
-func (api *FutuAPI) GetGlobalState(req *GetGlobalState.Request) (<-chan *GetGlobalState.Response, error) {
-	out := make(chan *GetGlobalState.Response)
-	if err := api.send(ProtoIDGetGlobalState, req, out); err != nil {
-		return nil, fmt.Errorf("GetGlobalState error: %w", err)
-	}
-	return out, nil
-}
+// // GetGlobalState 获取全局状态
+// func (api *FutuAPI) GetGlobalState(req *GetGlobalState.Request) (<-chan *GetGlobalState.Response, error) {
+// 	out := make(chan *GetGlobalState.Response)
+// 	if err := api.send(ProtoIDGetGlobalState, req, out); err != nil {
+// 		return nil, fmt.Errorf("GetGlobalState error: %w", err)
+// 	}
+// 	return out, nil
+// }
 
 // Notify 系统推送通知
-func (api *FutuAPI) Notify() (<-chan *Notify.Response, error) {
-	out := make(chan *Notify.Response)
-	if err := api.subscribe(ProtoIDNotify, out); err != nil {
-		return nil, fmt.Errorf("Notify error: %w", err)
-	}
-	return out, nil
-}
+// func (api *FutuAPI) Notify() (<-chan *Notify.Response, error) {
+// 	out := make(Notify.ResponseChan)
+// 	if err := api.subscribe(ProtoIDNotify, out); err != nil {
+// 		return nil, err
+// 	}
+// 	return out, nil
+// }

@@ -1,6 +1,6 @@
 syntax = "proto2";
 package Qot_UpdateTicker;
-option go_package = "github.com/hurisheng/go-futu-api/protobuf/Qot_UpdateTicker";
+option go_package = "github.com/hurisheng/go-futu-api/protobuf/qotupdateticker";
 
 import "Common.proto";
 import "Qot_Common.proto";
