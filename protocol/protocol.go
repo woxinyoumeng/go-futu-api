@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"reflect"
 	"sync"
 
 	"github.com/hurisheng/go-futu-api/tcp"
@@ -33,7 +34,7 @@ type FutuEncoder struct {
 
 var _ tcp.Encoder = (*FutuEncoder)(nil)
 
-func NewEncoder(proto uint32, serial uint32, msg proto.Message) tcp.Encoder {
+func NewEncoder(proto uint32, serial uint32, msg proto.Message) *FutuEncoder {
 	return &FutuEncoder{
 		proto:  proto,
 		serial: serial,
@@ -80,7 +81,7 @@ type FutuDecoder struct {
 
 var _ tcp.Decoder = (*FutuDecoder)(nil)
 
-func NewDecoder(reg *Registry) tcp.Decoder {
+func NewDecoder(reg *Registry) *FutuDecoder {
 	return &FutuDecoder{reg: reg}
 }
 
@@ -107,6 +108,7 @@ func (de *FutuDecoder) ReadFrom(c net.Conn) (tcp.Handler, error) {
 			return nil, errors.New("SHA1 sum error")
 		}
 	}
+	log.Printf("read: proto %v serial %v", h.ProtoID, h.SerialNo)
 	return &handler{
 		reg:    de.reg,
 		proto:  h.ProtoID,
@@ -125,11 +127,13 @@ type handler struct {
 var _ tcp.Handler = (*handler)(nil)
 
 func (h *handler) Handle() {
+	log.Printf("handle: proto %v serial %v", h.proto, h.serial)
 	if err := h.reg.handle(h.proto, h.serial, h.body); err != nil {
 		// todo 错误处理
 		log.Println(err)
 		return
 	}
+	log.Printf("finish: proto %v serial %v", h.proto, h.serial)
 }
 
 // Registry 接收数据处理器注册表
@@ -153,16 +157,16 @@ func (reg *Registry) Close() {
 }
 
 // AddUpdateChan 添加update方法的接收通道
-func (reg *Registry) AddUpdateChan(proto uint32, ch ResponseChan) error {
+func (reg *Registry) AddUpdateChan(proto uint32, ch RespChan) error {
 	return reg.addChan(proto, 0, ch, newUpdateWorker())
 }
 
 // AddGetChan 添加get方法的接收通道
-func (reg *Registry) AddGetChan(proto uint32, serial uint32, ch ResponseChan) error {
+func (reg *Registry) AddGetChan(proto uint32, serial uint32, ch RespChan) error {
 	return reg.addChan(proto, serial, ch, newGetWorker())
 }
 
-func (reg *Registry) addChan(proto uint32, serial uint32, ch ResponseChan, w worker) error {
+func (reg *Registry) addChan(proto uint32, serial uint32, ch RespChan, w worker) error {
 	reg.mu.Lock()
 	if reg.m[proto] == nil {
 		reg.m[proto] = w
@@ -195,14 +199,51 @@ func (reg *Registry) handle(proto uint32, serial uint32, body []byte) error {
 	return w.handle(serial, body)
 }
 
-// 用于接收到数据后，发送协议数据到接收goroutine
-type ResponseChan interface {
+type RespChan interface {
 	Send(b []byte) error
 	Close()
 }
 
+// 用于接收到数据后，发送协议数据到接收goroutine
+type PBChan struct {
+	v reflect.Value
+	t reflect.Type
+}
+
+var _ RespChan = (*PBChan)(nil)
+
+func NewPBChan(i interface{}) (*PBChan, error) {
+	// i必须为chan *T类型，T为struct，*T实现proto.Message
+	// 通过reflect检查out的类型是否正确
+	v, ct := reflect.ValueOf(i), reflect.TypeOf(i)
+	// must be a channel type
+	if ct.Kind() != reflect.Chan {
+		return nil, errors.New("type is not channel")
+	}
+	// it must be a channel of pointer to the response type which implements proto.Message interface
+	pt := ct.Elem()
+	if pt.Kind() != reflect.Ptr || !pt.Implements(reflect.TypeOf((*proto.Message)(nil)).Elem()) {
+		return nil, errors.New("not a channel of pointer to type implements interface proto.Message")
+	}
+	return &PBChan{v: v, t: pt.Elem()}, nil
+}
+
+func (ch *PBChan) Send(b []byte) error {
+	// resp为*T，分配内存空间转换b的数据
+	resp := reflect.New(ch.t)
+	if err := proto.Unmarshal(b, resp.Interface().(proto.Message)); err != nil {
+		return err
+	}
+	ch.v.Send(resp)
+	return nil
+}
+
+func (ch *PBChan) Close() {
+	ch.v.Close()
+}
+
 type worker interface {
-	add(serial uint32, ch ResponseChan) error
+	add(serial uint32, ch RespChan) error
 	remove(serial uint32) error
 	handle(serial uint32, body []byte) error
 	close()
@@ -215,7 +256,7 @@ var (
 
 // updateWorker 处理update数据推送
 type updateWorker struct {
-	ch ResponseChan
+	ch RespChan
 
 	serial uint32
 	mu     sync.Mutex
@@ -223,11 +264,11 @@ type updateWorker struct {
 
 var _ worker = (*updateWorker)(nil)
 
-func newUpdateWorker() worker {
+func newUpdateWorker() *updateWorker {
 	return &updateWorker{}
 }
 
-func (w *updateWorker) add(serial uint32, ch ResponseChan) error {
+func (w *updateWorker) add(serial uint32, ch RespChan) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	// channel已经存在，不能重复添加
@@ -280,17 +321,17 @@ func (w *updateWorker) close() {
 }
 
 type getWorker struct {
-	m  map[uint32]ResponseChan
+	m  map[uint32]RespChan
 	mu sync.Mutex
 }
 
 var _ worker = (*getWorker)(nil)
 
-func newGetWorker() worker {
-	return &getWorker{m: make(map[uint32]ResponseChan)}
+func newGetWorker() *getWorker {
+	return &getWorker{m: make(map[uint32]RespChan)}
 }
 
-func (w *getWorker) add(serial uint32, ch ResponseChan) error {
+func (w *getWorker) add(serial uint32, ch RespChan) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	// serial已经存在，不能重复添加

@@ -3,31 +3,30 @@ package futuapi
 import (
 	"context"
 	"testing"
-
-	"github.com/hurisheng/go-futu-api/protobuf/qotcommon"
-	"github.com/hurisheng/go-futu-api/protobuf/qotsub"
 )
 
 func TestConnect(t *testing.T) {
-	api, err := NewFutuAPI(&Config{
-		Address:   ":11111",
-		ClientVer: 100,
-		ClientID:  "1",
-	})
+	api := NewFutuAPI()
+
+	if err := api.Connect(context.Background(), ":11111"); err != nil {
+		t.Error(err)
+		return
+	}
+	resp, err := api.GetGlobalState(context.Background())
 	if err != nil {
 		t.Error(err)
+		return
 	}
-	var market int32 = int32(qotcommon.QotMarket_QotMarket_HK_Security)
-	var code string = "0700"
-	if re, err := api.QotSub(context.Background(), &qotsub.C2S{
-		SecurityList: []*qotcommon.Security{
-			{Market: &market, Code: &code},
-		},
-	}); err != nil {
-		t.Error(err)
-	} else {
-		t.Error(re)
-	}
+	t.Error(resp)
+	// req := QotSubReq{
+	// 	Securities: []*Security{{qotcommon.QotMarket_QotMarket_HK_Security, "00700"}},
+	// 	IsSub:      true,
+	// 	SubTypes:   []qotcommon.SubType{qotcommon.SubType_SubType_Ticker},
+	// 	RehabTypes: []qotcommon.RehabType{qotcommon.RehabType_RehabType_Forward},
+	// }
+	// if err := api.QotSub(context.Background(), &req); err != nil {
+	// 	t.Error(err)
+	// }
 	// ticker, err := api.QotUpdateTicker()
 	// if err != nil {
 	// 	t.Error(err)
