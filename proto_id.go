@@ -2,11 +2,6 @@ package futuapi
 
 //  for all the commands.
 const (
-	ProtoIDInitConnect    = 1001 //InitConnect	初始化连接
-	ProtoIDGetGlobalState = 1002 //GetGlobalState	获取全局状态
-	ProtoIDNotify         = 1003 //Notify	系统通知推送
-	ProtoIDKeepAlive      = 1004 //KeepAlive	保活心跳
-
 	ProtoIDTrdGetAccList  = 2001 //Trd_GetAccList	获取业务账户列表
 	ProtoIDTrdUnlockTrade = 2005 //Trd_UnlockTrade	解锁或锁定交易
 	ProtoIDTrdSubAccPush  = 2008 //Trd_SubAccPush	订阅业务账户的交易推送数据
@@ -24,16 +19,10 @@ const (
 	ProtoIDTrdGetHistoryOrderList     = 2221 //Trd_GetHistoryOrderList	获取历史订单列表
 	ProtoIDTrdGetHistoryOrderFillList = 2222 //Trd_GetHistoryOrderFillList	获取历史成交列表
 
-	ProtoIDQotSub                 = 3001 //Qot_Sub	订阅或者反订阅
-	ProtoIDQotGetSubInfo          = 3003 //Qot_GetSubInfo	获取订阅信息
-	ProtoIDQotGetBasicQot         = 3004 //Qot_GetBasicQot	获取股票基本报价
-	ProtoIDQotUpdateBasicQot      = 3005 //Qot_UpdateBasicQot	推送股票基本报价
-	ProtoIDQotGetKL               = 3006 //Qot_GetKL	获取 K 线
-	ProtoIDQotUpdateKL            = 3007 //Qot_UpdateKL	推送 K 线
-	ProtoIDQotGetRT               = 3008 //Qot_GetRT	获取分时
-	ProtoIDQotUpdateRT            = 3009 //Qot_UpdateRT	推送分时
-	ProtoIDQotGetTicker           = 3010 //Qot_GetTicker	获取逐笔
-	ProtoIDQotUpdateTicker        = 3011 //Qot_UpdateTicker	推送逐笔
+	ProtoIDQotUpdateKL  = 3007 //Qot_UpdateKL	推送 K 线
+	ProtoIDQotUpdateRT  = 3009 //Qot_UpdateRT	推送分时
+	ProtoIDQotGetTicker = 3010 //Qot_GetTicker	获取逐笔
+
 	ProtoIDQotGetOrderBook        = 3012 //Qot_GetOrderBook	获取买卖盘
 	ProtoIDQotUpdateOrderBook     = 3013 //Qot_UpdateOrderBook	推送买卖盘
 	ProtoIDQotGetBroker           = 3014 //Qot_GetBroker	获取经纪队列

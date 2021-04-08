@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"reflect"
 	"sync"
 
 	"github.com/hurisheng/go-futu-api/tcp"
@@ -205,42 +204,42 @@ type RespChan interface {
 }
 
 // 用于接收到数据后，发送协议数据到接收goroutine
-type PBChan struct {
-	v reflect.Value
-	t reflect.Type
-}
+// type PBChan struct {
+// 	v reflect.Value
+// 	t reflect.Type
+// }
 
-var _ RespChan = (*PBChan)(nil)
+// var _ RespChan = (*PBChan)(nil)
 
-func NewPBChan(i interface{}) (*PBChan, error) {
-	// i必须为chan *T类型，T为struct，*T实现proto.Message
-	// 通过reflect检查out的类型是否正确
-	v, ct := reflect.ValueOf(i), reflect.TypeOf(i)
-	// must be a channel type
-	if ct.Kind() != reflect.Chan {
-		return nil, errors.New("type is not channel")
-	}
-	// it must be a channel of pointer to the response type which implements proto.Message interface
-	pt := ct.Elem()
-	if pt.Kind() != reflect.Ptr || !pt.Implements(reflect.TypeOf((*proto.Message)(nil)).Elem()) {
-		return nil, errors.New("not a channel of pointer to type implements interface proto.Message")
-	}
-	return &PBChan{v: v, t: pt.Elem()}, nil
-}
+// func NewPBChan(i interface{}) (*PBChan, error) {
+// 	// i必须为chan *T类型，T为struct，*T实现proto.Message
+// 	// 通过reflect检查out的类型是否正确
+// 	v, ct := reflect.ValueOf(i), reflect.TypeOf(i)
+// 	// must be a channel type
+// 	if ct.Kind() != reflect.Chan {
+// 		return nil, errors.New("type is not channel")
+// 	}
+// 	// it must be a channel of pointer to the response type which implements proto.Message interface
+// 	pt := ct.Elem()
+// 	if pt.Kind() != reflect.Ptr || !pt.Implements(reflect.TypeOf((*proto.Message)(nil)).Elem()) {
+// 		return nil, errors.New("not a channel of pointer to type implements interface proto.Message")
+// 	}
+// 	return &PBChan{v: v, t: pt.Elem()}, nil
+// }
 
-func (ch *PBChan) Send(b []byte) error {
-	// resp为*T，分配内存空间转换b的数据
-	resp := reflect.New(ch.t)
-	if err := proto.Unmarshal(b, resp.Interface().(proto.Message)); err != nil {
-		return err
-	}
-	ch.v.Send(resp)
-	return nil
-}
+// func (ch *PBChan) Send(b []byte) error {
+// 	// resp为*T，分配内存空间转换b的数据
+// 	resp := reflect.New(ch.t)
+// 	if err := proto.Unmarshal(b, resp.Interface().(proto.Message)); err != nil {
+// 		return err
+// 	}
+// 	ch.v.Send(resp)
+// 	return nil
+// }
 
-func (ch *PBChan) Close() {
-	ch.v.Close()
-}
+// func (ch *PBChan) Close() {
+// 	ch.v.Close()
+// }
 
 type worker interface {
 	add(serial uint32, ch RespChan) error

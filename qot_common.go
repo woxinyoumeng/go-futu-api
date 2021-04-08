@@ -1,10 +1,13 @@
 package futuapi
 
-import "github.com/hurisheng/go-futu-api/pb/qotcommon"
+import (
+	"github.com/hurisheng/go-futu-api/pb/qotcommon"
+	"github.com/hurisheng/go-futu-api/pb/qotupdateticker"
+)
 
 type Security struct {
-	Market qotcommon.QotMarket
-	Code   string
+	Market qotcommon.QotMarket //*QotMarket，股票市场
+	Code   string              //*股票代码
 }
 
 func (s Security) pb() *qotcommon.Security {
@@ -24,62 +27,18 @@ func securityFromPB(pb *qotcommon.Security) *Security {
 	}
 }
 
-type SubInfo struct {
-	SubType    qotcommon.SubType
-	Securities []*Security
-}
-
-func subInfoFromPB(pb *qotcommon.SubInfo) *SubInfo {
-	if pb == nil {
-		return nil
-	}
-	info := SubInfo{
-		SubType: qotcommon.SubType(pb.GetSubType()),
-	}
-	if list := pb.GetSecurityList(); list != nil {
-		info.Securities = make([]*Security, len(list))
-		for i, v := range list {
-			info.Securities[i] = securityFromPB(v)
-		}
-	}
-	return &info
-}
-
-type ConnSubInfo struct {
-	SubInfos  []*SubInfo
-	UsedQuota int32
-	IsOwnData bool
-}
-
-func connSubInfoFromPB(pb *qotcommon.ConnSubInfo) *ConnSubInfo {
-	if pb == nil {
-		return nil
-	}
-	info := ConnSubInfo{
-		UsedQuota: pb.GetUsedQuota(),
-		IsOwnData: pb.GetIsOwnConnData(),
-	}
-	if list := pb.GetSubInfoList(); list != nil {
-		info.SubInfos = make([]*SubInfo, len(list))
-		for i, v := range list {
-			info.SubInfos[i] = subInfoFromPB(v)
-		}
-	}
-	return &info
-}
-
 type OptionBasicQotExData struct {
-	StrikePrice          float64                   //行权价
-	ContractSize         int32                     //每份合约数(整型数据)
+	StrikePrice          float64                   //*行权价
+	ContractSize         int32                     //*每份合约数(整型数据)
 	ContractSizeFloat    float64                   //每份合约数（浮点型数据）
-	OpenInterest         int32                     //未平仓合约数
-	ImpliedVolatility    float64                   //隐含波动率（该字段为百分比字段，默认不展示 %，如 20 实际对应 20%，如 20 实际对应 20%）
-	Premium              float64                   //溢价（该字段为百分比字段，默认不展示 %，如 20 实际对应 20%，如 20 实际对应 20%）
-	Delta                float64                   //希腊值 Delta
-	Gamma                float64                   //希腊值 Gamma
-	Vega                 float64                   //希腊值 Vega
-	Theta                float64                   //希腊值 Theta
-	Rho                  float64                   //希腊值 Rho
+	OpenInterest         int32                     //*未平仓合约数
+	ImpliedVolatility    float64                   //*隐含波动率（该字段为百分比字段，默认不展示 %，如 20 实际对应 20%，如 20 实际对应 20%）
+	Premium              float64                   //*溢价（该字段为百分比字段，默认不展示 %，如 20 实际对应 20%，如 20 实际对应 20%）
+	Delta                float64                   //*希腊值 Delta
+	Gamma                float64                   //*希腊值 Gamma
+	Vega                 float64                   //*希腊值 Vega
+	Theta                float64                   //*希腊值 Theta
+	Rho                  float64                   //*希腊值 Rho
 	NetOpenInterest      int32                     //净未平仓合约数，仅港股期权适用
 	ExpiryDataDistance   int32                     //距离到期日天数，负数表示已过期
 	ContractNominalValue float64                   //合约名义金额，仅港股期权适用
@@ -143,9 +102,9 @@ func preAfterMarketDataFromPB(pb *qotcommon.PreAfterMarketData) *PreAfterMarketD
 }
 
 type FutureBasicQotExData struct {
-	LastSettlePrice    float64 //昨结
-	Position           int32   //持仓量
-	PositionChange     int32   //日增仓
+	LastSettlePrice    float64 //*昨结
+	Position           int32   //*持仓量
+	PositionChange     int32   //*日增仓
 	ExpiryDataDistance int32   //距离到期日天数
 }
 
@@ -158,5 +117,183 @@ func futureBasicQotExDataFromPB(pb *qotcommon.FutureBasicQotExData) *FutureBasic
 		Position:           pb.GetPosition(),
 		PositionChange:     pb.GetPositionChange(),
 		ExpiryDataDistance: pb.GetExpiryDateDistance(),
+	}
+}
+
+type BasicQot struct {
+	Security        *Security                //*股票
+	IsSuspended     bool                     //*是否停牌
+	ListTime        string                   //*上市日期字符串
+	PriceSpread     float64                  //*价差
+	UpdateTime      string                   //*最新价的更新时间字符串，对其他字段不适用
+	HighPrice       float64                  //*最高价
+	OpenPrice       float64                  //*开盘价
+	LowPrice        float64                  //*最低价
+	CurPrice        float64                  //*最新价
+	LastClosePrice  float64                  //*昨收价
+	Volume          int64                    //*成交量
+	Turnover        float64                  //*成交额
+	TurnoverRate    float64                  //*换手率（该字段为百分比字段，默认不展示 %，如 20 实际对应 20%，如 20 实际对应 20%）
+	Amplitude       float64                  //*振幅（该字段为百分比字段，默认不展示 %，如 20 实际对应 20%，如 20 实际对应 20%）
+	DarkStatus      qotcommon.DarkStatus     //DarkStatus, 暗盘交易状态
+	OptionExData    *OptionBasicQotExData    //期权特有字段
+	ListTimestamp   float64                  //上市日期时间戳
+	UpdateTimestamp float64                  //最新价的更新时间戳，对其他字段不适用
+	PreMarket       *PreAfterMarketData      //盘前数据
+	AfterMarket     *PreAfterMarketData      //盘后数据
+	SecStatus       qotcommon.SecurityStatus //SecurityStatus, 股票状态
+	FutureExData    *FutureBasicQotExData    //期货特有字段
+}
+
+func basicQotFromPB(pb *qotcommon.BasicQot) *BasicQot {
+	if pb == nil {
+		return nil
+	}
+	return &BasicQot{
+		Security:        securityFromPB(pb.GetSecurity()),
+		IsSuspended:     pb.GetIsSuspended(),
+		ListTime:        pb.GetListTime(),
+		PriceSpread:     pb.GetPriceSpread(),
+		UpdateTime:      pb.GetUpdateTime(),
+		HighPrice:       pb.GetHighPrice(),
+		OpenPrice:       pb.GetOpenPrice(),
+		LowPrice:        pb.GetLowPrice(),
+		CurPrice:        pb.GetCurPrice(),
+		LastClosePrice:  pb.GetLastClosePrice(),
+		Volume:          pb.GetVolume(),
+		Turnover:        pb.GetTurnover(),
+		TurnoverRate:    pb.GetTurnoverRate(),
+		Amplitude:       pb.GetAmplitude(),
+		DarkStatus:      qotcommon.DarkStatus(pb.GetDarkStatus()),
+		OptionExData:    optionBasicQotExDataFromPB(pb.GetOptionExData()),
+		ListTimestamp:   pb.GetListTimestamp(),
+		UpdateTimestamp: pb.GetUpdateTimestamp(),
+		PreMarket:       preAfterMarketDataFromPB(pb.GetPreMarket()),
+		AfterMarket:     preAfterMarketDataFromPB(pb.GetAfterMarket()),
+		SecStatus:       qotcommon.SecurityStatus(pb.GetSecStatus()),
+		FutureExData:    futureBasicQotExDataFromPB(pb.GetFutureExData()),
+	}
+}
+
+type TickerItem struct {
+	Time         string                    //*时间字符串
+	Sequence     int64                     //*唯一标识
+	Dir          qotcommon.TickerDirection //*TickerDirection, 买卖方向
+	Price        float64                   //*价格
+	Volume       int64                     //*成交量
+	Turnover     float64                   //*成交额
+	RecvTime     float64                   //收到推送数据的本地时间戳，用于定位延迟
+	Type         qotcommon.TickerType      //TickerType, 逐笔类型
+	TypeSign     int32                     //逐笔类型符号
+	PushDataType qotcommon.PushDataType    //用于区分推送情况，仅推送时有该字段
+	Timestamp    float64                   //时间戳
+}
+
+func tickerItemFromPB(pb *qotcommon.Ticker) *TickerItem {
+	if pb == nil {
+		return nil
+	}
+	return &TickerItem{
+		Time:         pb.GetTime(),
+		Sequence:     pb.GetSequence(),
+		Dir:          qotcommon.TickerDirection(pb.GetDir()),
+		Price:        pb.GetPrice(),
+		Volume:       pb.GetVolume(),
+		Turnover:     pb.GetTurnover(),
+		RecvTime:     pb.GetRecvTime(),
+		Type:         qotcommon.TickerType(pb.GetType()),
+		TypeSign:     pb.GetTypeSign(),
+		PushDataType: qotcommon.PushDataType(pb.GetPushDataType()),
+		Timestamp:    pb.GetTimestamp(),
+	}
+}
+
+// 逐笔成交
+type Ticker struct {
+	Security *Security     //股票
+	Items    []*TickerItem //推送的逐笔数据结构体
+}
+
+func tickerFromPB(pb *qotupdateticker.S2C) *Ticker {
+	if pb == nil {
+		return nil
+	}
+	t := Ticker{
+		Security: securityFromPB(pb.GetSecurity()),
+	}
+	if list := pb.GetTickerList(); list != nil {
+		t.Items = make([]*TickerItem, len(list))
+		for i, v := range list {
+			t.Items[i] = tickerItemFromPB(v)
+		}
+	}
+	return &t
+}
+
+// K 线数据
+type KLine struct {
+	Time           string  //*时间戳字符串
+	IsBlank        bool    //*是否是空内容的点,若为 true 则只有时间信息
+	HighPrice      float64 //最高价
+	OpenPrice      float64 //开盘价
+	LowPrice       float64 //最低价
+	ClosePrice     float64 //收盘价
+	LastClosePrice float64 //昨收价
+	Volume         int64   //成交量
+	Turnover       float64 //成交额
+	TurnoverRate   float64 //换手率（该字段为百分比字段，展示为小数表示）
+	PE             float64 //市盈率
+	ChangeRate     float64 //涨跌幅（该字段为百分比字段，默认不展示 %，如 20 实际对应 20%，如 20 实际对应 20%）
+	Timestamp      float64 //时间戳
+}
+
+func kLineFromPB(pb *qotcommon.KLine) *KLine {
+	if pb == nil {
+		return nil
+	}
+	return &KLine{
+		Time:           pb.GetTime(),
+		IsBlank:        pb.GetIsBlank(),
+		HighPrice:      pb.GetHighPrice(),
+		OpenPrice:      pb.GetOpenPrice(),
+		LowPrice:       pb.GetLowPrice(),
+		ClosePrice:     pb.GetClosePrice(),
+		LastClosePrice: pb.GetLastClosePrice(),
+		Volume:         pb.GetVolume(),
+		Turnover:       pb.GetTurnover(),
+		TurnoverRate:   pb.GetTurnoverRate(),
+		PE:             pb.GetPe(),
+		ChangeRate:     pb.GetChangeRate(),
+		Timestamp:      pb.GetTimestamp(),
+	}
+}
+
+// 分时数据
+type TimeShare struct {
+	Time           string  //*时间字符串
+	Minute         int32   //*距离0点过了多少分钟
+	IsBlank        bool    //*是否是空内容的点,若为 true 则只有时间信息
+	Price          float64 //当前价
+	LastClosePrice float64 //昨收价
+	AvgPrice       float64 //均价
+	Volume         int64   //成交量
+	Turnover       float64 //成交额
+	Timestamp      float64 //时间戳
+}
+
+func timeShareFromPB(pb *qotcommon.TimeShare) *TimeShare {
+	if pb == nil {
+		return nil
+	}
+	return &TimeShare{
+		Time:           pb.GetTime(),
+		Minute:         pb.GetMinute(),
+		IsBlank:        pb.GetIsBlank(),
+		Price:          pb.GetPrice(),
+		LastClosePrice: pb.GetLastClosePrice(),
+		AvgPrice:       pb.GetAvgPrice(),
+		Volume:         pb.GetVolume(),
+		Turnover:       pb.GetTurnover(),
+		Timestamp:      pb.GetTimestamp(),
 	}
 }
