@@ -13,6 +13,7 @@ const (
 	ProtoIDQotGetKL = 3006 //Qot_GetKL	获取 K 线
 )
 
+// 获取实时 K 线
 func (api *FutuAPI) GetCurKL(ctx context.Context, sec *Security, num int32, rehabType qotcommon.RehabType, klType qotcommon.KLType) (*CurKLine, error) {
 	ch := make(qotGetKLChan)
 	if err := api.get(ProtoIDQotGetKL, &qotgetkl.Request{
@@ -45,16 +46,10 @@ func curKLineFromPB(pb *qotgetkl.S2C) *CurKLine {
 	if pb == nil {
 		return nil
 	}
-	kl := CurKLine{
+	return &CurKLine{
 		Security: securityFromPB(pb.GetSecurity()),
+		KLines:   kLineListFromPB(pb.GetKlList()),
 	}
-	if list := pb.GetKlList(); list != nil {
-		kl.KLines = make([]*KLine, len(list))
-		for i, v := range list {
-			kl.KLines[i] = kLineFromPB(v)
-		}
-	}
-	return &kl
 }
 
 type qotGetKLChan chan *qotgetkl.Response

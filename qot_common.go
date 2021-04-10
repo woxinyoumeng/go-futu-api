@@ -2,9 +2,9 @@ package futuapi
 
 import (
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
-	"github.com/hurisheng/go-futu-api/pb/qotupdateticker"
 )
 
+// 证券标识
 type Security struct {
 	Market qotcommon.QotMarket //*QotMarket，股票市场
 	Code   string              //*股票代码
@@ -27,6 +27,31 @@ func securityFromPB(pb *qotcommon.Security) *Security {
 	}
 }
 
+type securityList []*Security
+
+func (s securityList) pb() []*qotcommon.Security {
+	if s == nil {
+		return nil
+	}
+	li := make([]*qotcommon.Security, len(s))
+	for i, v := range s {
+		li[i] = v.pb()
+	}
+	return li
+}
+
+// func securityListFromPB(pb []*qotcommon.Security) []*Security {
+// 	if pb == nil {
+// 		return nil
+// 	}
+// 	s := make(securityList, len(pb))
+// 	for i, v := range pb {
+// 		s[i] = securityFromPB(v)
+// 	}
+// 	return s
+// }
+
+// 基础报价的期权特有字段
 type OptionBasicQotExData struct {
 	StrikePrice          float64                   //*行权价
 	ContractSize         int32                     //*每份合约数(整型数据)
@@ -74,6 +99,7 @@ func optionBasicQotExDataFromPB(pb *qotcommon.OptionBasicQotExData) *OptionBasic
 	}
 }
 
+// 盘前盘后数据
 type PreAfterMarketData struct {
 	Price      float64 // 盘前或盘后## 价格
 	HighPrice  float64 // 盘前或盘后## 最高价
@@ -101,6 +127,7 @@ func preAfterMarketDataFromPB(pb *qotcommon.PreAfterMarketData) *PreAfterMarketD
 	}
 }
 
+// 基础报价的期货特有字段
 type FutureBasicQotExData struct {
 	LastSettlePrice    float64 //*昨结
 	Position           int32   //*持仓量
@@ -120,6 +147,7 @@ func futureBasicQotExDataFromPB(pb *qotcommon.FutureBasicQotExData) *FutureBasic
 	}
 }
 
+// 基础报价
 type BasicQot struct {
 	Security        *Security                //*股票
 	IsSuspended     bool                     //*是否停牌
@@ -175,59 +203,79 @@ func basicQotFromPB(pb *qotcommon.BasicQot) *BasicQot {
 	}
 }
 
-type TickerItem struct {
-	Time         string                    //*时间字符串
-	Sequence     int64                     //*唯一标识
-	Dir          qotcommon.TickerDirection //*TickerDirection, 买卖方向
-	Price        float64                   //*价格
-	Volume       int64                     //*成交量
-	Turnover     float64                   //*成交额
-	RecvTime     float64                   //收到推送数据的本地时间戳，用于定位延迟
-	Type         qotcommon.TickerType      //TickerType, 逐笔类型
-	TypeSign     int32                     //逐笔类型符号
-	PushDataType qotcommon.PushDataType    //用于区分推送情况，仅推送时有该字段
-	Timestamp    float64                   //时间戳
-}
-
-func tickerItemFromPB(pb *qotcommon.Ticker) *TickerItem {
+func basicQotListFromPB(pb []*qotcommon.BasicQot) []*BasicQot {
 	if pb == nil {
 		return nil
 	}
-	return &TickerItem{
-		Time:         pb.GetTime(),
-		Sequence:     pb.GetSequence(),
-		Dir:          qotcommon.TickerDirection(pb.GetDir()),
-		Price:        pb.GetPrice(),
-		Volume:       pb.GetVolume(),
-		Turnover:     pb.GetTurnover(),
-		RecvTime:     pb.GetRecvTime(),
-		Type:         qotcommon.TickerType(pb.GetType()),
-		TypeSign:     pb.GetTypeSign(),
-		PushDataType: qotcommon.PushDataType(pb.GetPushDataType()),
-		Timestamp:    pb.GetTimestamp(),
+	bq := make([]*BasicQot, len(pb))
+	for i, v := range pb {
+		bq[i] = basicQotFromPB(v)
 	}
+	return bq
 }
 
-// 逐笔成交
-type Ticker struct {
-	Security *Security     //股票
-	Items    []*TickerItem //推送的逐笔数据结构体
+// 买卖档
+type OrderBook struct {
+	Price      float64            //*委托价格
+	Volume     int64              //*委托数量
+	OrderCount int32              //*委托订单个数
+	Details    []*OrderBookDetail //订单信息，SF 行情特有
 }
 
-func tickerFromPB(pb *qotupdateticker.S2C) *Ticker {
+func orderBookFromPB(pb *qotcommon.OrderBook) *OrderBook {
 	if pb == nil {
 		return nil
 	}
-	t := Ticker{
-		Security: securityFromPB(pb.GetSecurity()),
+	item := OrderBook{
+		Price:      pb.GetPrice(),
+		Volume:     pb.GetVolume(),
+		OrderCount: pb.GetOrederCount(),
 	}
-	if list := pb.GetTickerList(); list != nil {
-		t.Items = make([]*TickerItem, len(list))
+	if list := pb.GetDetailList(); list != nil {
+		item.Details = make([]*OrderBookDetail, len(list))
 		for i, v := range list {
-			t.Items[i] = tickerItemFromPB(v)
+			item.Details[i] = orderBookDetailFromPB(v)
 		}
 	}
-	return &t
+	return &item
+}
+
+// 买卖档明细
+type OrderBookDetail struct {
+	OrderID int64 //交易所订单 ID，与交易接口返回的订单 ID 并不一样
+	Volume  int64 //订单股数
+}
+
+func orderBookDetailFromPB(pb *qotcommon.OrderBookDetail) *OrderBookDetail {
+	if pb == nil {
+		return nil
+	}
+	return &OrderBookDetail{
+		OrderID: pb.GetOrderID(),
+		Volume:  pb.GetVolume(),
+	}
+}
+
+func orderBookListFromPB(pb []*qotcommon.OrderBook) []*OrderBook {
+	if pb == nil {
+		return nil
+	}
+	ob := make([]*OrderBook, len(pb))
+	for i, v := range pb {
+		ob[i] = orderBookFromPB(v)
+	}
+	return ob
+}
+
+// 实时摆盘
+type RTOrderBook struct {
+	Security                *Security    //*股票
+	Asks                    []*OrderBook //卖盘
+	Bids                    []*OrderBook //买盘
+	SvrRecvTimeBid          string       // 富途服务器从交易所收到数据的时间(for bid)部分数据的接收时间为零，例如服务器重启或第一次推送的缓存数据。该字段暂时只支持港股。
+	SvrRecvTimeBidTimestamp float64      // 富途服务器从交易所收到数据的时间戳(for bid)
+	SvrRecvTimeAsk          string       // 富途服务器从交易所收到数据的时间(for ask)
+	SvrRecvTimeAskTimestamp float64      // 富途服务器从交易所收到数据的时间戳(for ask)
 }
 
 // K 线数据
@@ -268,6 +316,17 @@ func kLineFromPB(pb *qotcommon.KLine) *KLine {
 	}
 }
 
+func kLineListFromPB(pb []*qotcommon.KLine) []*KLine {
+	if pb == nil {
+		return nil
+	}
+	k := make([]*KLine, len(pb))
+	for i, v := range pb {
+		k[i] = kLineFromPB(v)
+	}
+	return k
+}
+
 // 分时数据
 type TimeShare struct {
 	Time           string  //*时间字符串
@@ -296,4 +355,113 @@ func timeShareFromPB(pb *qotcommon.TimeShare) *TimeShare {
 		Turnover:       pb.GetTurnover(),
 		Timestamp:      pb.GetTimestamp(),
 	}
+}
+
+func timeShareListFromPB(pb []*qotcommon.TimeShare) []*TimeShare {
+	if pb == nil {
+		return nil
+	}
+	t := make([]*TimeShare, len(pb))
+	for i, v := range pb {
+		t[i] = timeShareFromPB(v)
+	}
+	return t
+}
+
+// 实时分时
+type RTData struct {
+	Security   *Security    //*股票
+	TimeShares []*TimeShare //*分时数据结构体
+}
+
+// 逐笔成交
+type Ticker struct {
+	Time         string                    //*时间字符串
+	Sequence     int64                     //*唯一标识
+	Dir          qotcommon.TickerDirection //*TickerDirection, 买卖方向
+	Price        float64                   //*价格
+	Volume       int64                     //*成交量
+	Turnover     float64                   //*成交额
+	RecvTime     float64                   //收到推送数据的本地时间戳，用于定位延迟
+	Type         qotcommon.TickerType      //TickerType, 逐笔类型
+	TypeSign     int32                     //逐笔类型符号
+	PushDataType qotcommon.PushDataType    //用于区分推送情况，仅推送时有该字段
+	Timestamp    float64                   //时间戳
+}
+
+func tickerFromPB(pb *qotcommon.Ticker) *Ticker {
+	if pb == nil {
+		return nil
+	}
+	return &Ticker{
+		Time:         pb.GetTime(),
+		Sequence:     pb.GetSequence(),
+		Dir:          qotcommon.TickerDirection(pb.GetDir()),
+		Price:        pb.GetPrice(),
+		Volume:       pb.GetVolume(),
+		Turnover:     pb.GetTurnover(),
+		RecvTime:     pb.GetRecvTime(),
+		Type:         qotcommon.TickerType(pb.GetType()),
+		TypeSign:     pb.GetTypeSign(),
+		PushDataType: qotcommon.PushDataType(pb.GetPushDataType()),
+		Timestamp:    pb.GetTimestamp(),
+	}
+}
+
+func tickerListFromPB(pb []*qotcommon.Ticker) []*Ticker {
+	if pb == nil {
+		return nil
+	}
+	t := make([]*Ticker, len(pb))
+	for i, v := range pb {
+		t[i] = tickerFromPB(v)
+	}
+	return t
+}
+
+// 实时逐笔
+type RTTicker struct {
+	Security *Security
+	Tickers  []*Ticker
+}
+
+// 买卖经纪
+type Broker struct {
+	ID   int64  //*经纪 ID
+	Name string //*经纪名称
+	Pos  int32  //*经纪档位
+	//以下为 SF 行情特有字段
+	OrderID int64 //交易所订单 ID，与交易接口返回的订单 ID 并不一样
+	Volume  int64 //订单股数
+}
+
+func brokerFromPB(pb *qotcommon.Broker) *Broker {
+	if pb == nil {
+		return nil
+	}
+	return &Broker{
+		ID:      pb.GetId(),
+		Name:    pb.GetName(),
+		Pos:     pb.GetPos(),
+		OrderID: pb.GetOrderID(),
+		Volume:  pb.GetVolume(),
+	}
+}
+
+func brokerListFromPB(pb []*qotcommon.Broker) []*Broker {
+	if pb == nil {
+		return nil
+	}
+	b := make([]*Broker, len(pb))
+	for i, v := range pb {
+		b[i] = brokerFromPB(v)
+	}
+	return b
+}
+
+// 实时经纪队列
+type BrokerQueue struct {
+	Security *Security //*股票
+	Asks     []*Broker //经纪 Ask(卖)盘
+	Bids     []*Broker //经纪 Bid(买)盘
 }

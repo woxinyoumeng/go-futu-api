@@ -19,14 +19,6 @@ const (
 	ProtoIDTrdGetHistoryOrderList     = 2221 //Trd_GetHistoryOrderList	获取历史订单列表
 	ProtoIDTrdGetHistoryOrderFillList = 2222 //Trd_GetHistoryOrderFillList	获取历史成交列表
 
-	ProtoIDQotUpdateKL  = 3007 //Qot_UpdateKL	推送 K 线
-	ProtoIDQotUpdateRT  = 3009 //Qot_UpdateRT	推送分时
-	ProtoIDQotGetTicker = 3010 //Qot_GetTicker	获取逐笔
-
-	ProtoIDQotGetOrderBook        = 3012 //Qot_GetOrderBook	获取买卖盘
-	ProtoIDQotUpdateOrderBook     = 3013 //Qot_UpdateOrderBook	推送买卖盘
-	ProtoIDQotGetBroker           = 3014 //Qot_GetBroker	获取经纪队列
-	ProtoIDQotUpdateBroker        = 3015 //Qot_UpdateBroker	推送经纪队列
 	ProtoIDQotUpdatePriceReminder = 3019 //Qot_UpdatePriceReminder	到价提醒通知
 
 	ProtoIDQotRequestHistoryKL      = 3103 //Qot_RequestHistoryKL	在线获取单只股票一段历史 K 线

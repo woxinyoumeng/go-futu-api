@@ -12,6 +12,7 @@ const (
 	ProtoIDQotGetRT = 3008 //Qot_GetRT	获取分时
 )
 
+// 获取实时分时
 func (api *FutuAPI) GetRTData(ctx context.Context, sec *Security) (*RTData, error) {
 	ch := make(rtDataChan)
 	if err := api.get(ProtoIDQotGetRT, &qotgetrt.Request{C2S: &qotgetrt.C2S{
@@ -26,30 +27,18 @@ func (api *FutuAPI) GetRTData(ctx context.Context, sec *Security) (*RTData, erro
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return rtDataFromPB(resp.GetS2C()), result(resp)
+		return rtDataFromGetPB(resp.GetS2C()), result(resp)
 	}
 }
 
-// 实时分时数据
-type RTData struct {
-	Security   *Security    //*股票
-	TimeShares []*TimeShare //*分时数据结构体
-}
-
-func rtDataFromPB(pb *qotgetrt.S2C) *RTData {
+func rtDataFromGetPB(pb *qotgetrt.S2C) *RTData {
 	if pb == nil {
 		return nil
 	}
-	rt := RTData{
-		Security: securityFromPB(pb.GetSecurity()),
+	return &RTData{
+		Security:   securityFromPB(pb.GetSecurity()),
+		TimeShares: timeShareListFromPB(pb.GetRtList()),
 	}
-	if list := pb.GetRtList(); list != nil {
-		rt.TimeShares = make([]*TimeShare, len(list))
-		for i, v := range list {
-			rt.TimeShares[i] = timeShareFromPB(v)
-		}
-	}
-	return &rt
 }
 
 type rtDataChan chan *qotgetrt.Response

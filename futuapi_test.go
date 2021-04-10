@@ -12,7 +12,7 @@ func TestConnect(t *testing.T) {
 	defer api.Close(context.Background())
 
 	api.SetRecvNotify(true)
-	nCh, _, err := api.SysNotify(context.Background())
+	nCh, err := api.SysNotify(context.Background())
 	if err != nil {
 		t.Error(err)
 	}
@@ -28,7 +28,7 @@ func TestConnect(t *testing.T) {
 		t.Error(sub)
 	}
 
-	tCh, eCh, err := api.UpdateTicker(context.Background())
+	tCh, err := api.UpdateTicker(context.Background())
 	if err != nil {
 		t.Error(err)
 	}
@@ -36,11 +36,11 @@ func TestConnect(t *testing.T) {
 		t.Error(err)
 	}
 	select {
-	case notify := <-nCh:
+	case notify := <-nCh.Notification:
 		t.Error(notify)
-	case ticker := <-tCh:
+	case ticker := <-tCh.Ticker:
 		t.Error(ticker)
-	case err := <-eCh:
+	case err := <-tCh.Err:
 		t.Error(err)
 	}
 

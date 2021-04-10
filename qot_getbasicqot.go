@@ -3,7 +3,6 @@ package futuapi
 import (
 	"context"
 
-	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotgetbasicqot"
 	"github.com/hurisheng/go-futu-api/protocol"
 	"google.golang.org/protobuf/proto"
@@ -15,17 +14,12 @@ const (
 
 // 获取股票基本行情
 func (api *FutuAPI) GetStockQuote(ctx context.Context, securities []*Security) ([]*BasicQot, error) {
-	req := qotgetbasicqot.Request{
-		C2S: &qotgetbasicqot.C2S{},
-	}
-	if securities != nil {
-		req.C2S.SecurityList = make([]*qotcommon.Security, len(securities))
-		for i, v := range securities {
-			req.C2S.SecurityList[i] = v.pb()
-		}
-	}
 	ch := make(qotGetBasicQotChan)
-	if err := api.get(ProtoIDQotGetBasicQot, &req, ch); err != nil {
+	if err := api.get(ProtoIDQotGetBasicQot, &qotgetbasicqot.Request{
+		C2S: &qotgetbasicqot.C2S{
+			SecurityList: securityList(securities).pb(),
+		},
+	}, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -35,14 +29,7 @@ func (api *FutuAPI) GetStockQuote(ctx context.Context, securities []*Security) (
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		var basic []*BasicQot
-		if list := resp.GetS2C().GetBasicQotList(); list != nil {
-			basic = make([]*BasicQot, len(list))
-			for i, v := range list {
-				basic[i] = basicQotFromPB(v)
-			}
-		}
-		return basic, nil
+		return basicQotListFromPB(resp.GetS2C().GetBasicQotList()), nil
 	}
 }
 

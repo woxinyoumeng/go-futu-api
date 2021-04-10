@@ -58,6 +58,7 @@ type qotSubReq struct {
 func (req qotSubReq) pb() *qotsub.Request {
 	r := qotsub.Request{
 		C2S: &qotsub.C2S{
+			SecurityList:         securityList(req.Securities).pb(),
 			IsSubOrUnSub:         &req.IsSub,
 			IsRegOrUnRegPush:     &req.IsRegPush,
 			IsFirstPush:          &req.IsFirstPush,
@@ -65,12 +66,6 @@ func (req qotSubReq) pb() *qotsub.Request {
 			IsSubOrderBookDetail: &req.IsSubOrderBookDetail,
 			ExtendedTime:         &req.IsExtendedTime,
 		},
-	}
-	if req.Securities != nil {
-		r.C2S.SecurityList = make([]*qotcommon.Security, len(req.Securities))
-		for i, v := range req.Securities {
-			r.C2S.SecurityList[i] = v.pb()
-		}
 	}
 	if req.SubTypes != nil {
 		r.C2S.SubTypeList = make([]int32, len(req.SubTypes))

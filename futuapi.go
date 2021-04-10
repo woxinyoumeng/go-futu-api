@@ -318,13 +318,15 @@ func (ch getGlobalStateChan) Close() {
 }
 
 // 系统推送通知
-func (api *FutuAPI) SysNotify(ctx context.Context) (<-chan *Notification, <-chan error, error) {
-	nCh := make(chan *Notification)
-	eCh := make(chan error)
-	if err := api.update(ProtoIDNotify, &notificationChan{notification: nCh, err: eCh}); err != nil {
-		return nil, nil, err
+func (api *FutuAPI) SysNotify(ctx context.Context) (*NotifyChan, error) {
+	ch := NotifyChan{
+		Notification: make(chan *Notification),
+		Err:          make(chan error),
 	}
-	return nCh, eCh, nil
+	if err := api.update(ProtoIDNotify, &ch); err != nil {
+		return nil, err
+	}
+	return &ch, nil
 }
 
 type Notification struct {
@@ -450,27 +452,27 @@ func apiQuotaFromPB(pb *notify.APIQuota) *APIQuota {
 	}
 }
 
-type notificationChan struct {
-	notification chan *Notification
-	err          chan error
+type NotifyChan struct {
+	Notification chan *Notification
+	Err          chan error
 }
 
-var _ protocol.RespChan = (*notificationChan)(nil)
+var _ protocol.RespChan = (*NotifyChan)(nil)
 
-func (ch *notificationChan) Send(b []byte) error {
+func (ch *NotifyChan) Send(b []byte) error {
 	var resp notify.Response
 	if err := proto.Unmarshal(b, &resp); err != nil {
 		return err
 	}
 	if err := result(&resp); err != nil {
-		ch.err <- err
+		ch.Err <- err
 	} else {
-		ch.notification <- notificationFromPB(resp.GetS2C())
+		ch.Notification <- notificationFromPB(resp.GetS2C())
 	}
 	return nil
 }
 
-func (ch *notificationChan) Close() {
-	close(ch.notification)
-	close(ch.err)
+func (ch *NotifyChan) Close() {
+	close(ch.Notification)
+	close(ch.Err)
 }
