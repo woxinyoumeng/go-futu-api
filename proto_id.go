@@ -26,7 +26,6 @@ const (
 	ProtoIDQotRequestRehab          = 3105 //Qot_RequestRehab	在线获取单只股票复权信息
 
 	ProtoIDQotGetStaticInfo          = 3202 //Qot_GetStaticInfo	获取股票静态信息
-	ProtoIDQotGetSecuritySnapshot    = 3203 //Qot_GetSecuritySnapshot	获取股票快照
 	ProtoIDQotGetPlateSet            = 3204 //Qot_GetPlateSet	获取板块集合下的板块
 	ProtoIDQotGetPlateSecurity       = 3205 //Qot_GetPlateSecurity	获取板块下的股票
 	ProtoIDQotGetReference           = 3206 //Qot_GetReference	获取正股相关股票
