@@ -465,3 +465,32 @@ type BrokerQueue struct {
 	Asks     []*Broker //经纪 Ask(卖)盘
 	Bids     []*Broker //经纪 Bid(买)盘
 }
+
+// 板块信息
+type PlateInfo struct {
+	Plate     *Security              //板块
+	Name      string                 //板块名字
+	PlateType qotcommon.PlateSetType //PlateSetType 板块类型, 仅3207（获取股票所属板块）协议返回该字段
+}
+
+func plateInfoFromPB(pb *qotcommon.PlateInfo) *PlateInfo {
+	if pb == nil {
+		return nil
+	}
+	return &PlateInfo{
+		Plate:     securityFromPB(pb.GetPlate()),
+		Name:      pb.GetName(),
+		PlateType: qotcommon.PlateSetType(pb.GetPlateType()),
+	}
+}
+
+func plateInfoListFromPB(pb []*qotcommon.PlateInfo) []*PlateInfo {
+	if pb == nil {
+		return nil
+	}
+	p := make([]*PlateInfo, len(pb))
+	for i, v := range pb {
+		p[i] = plateInfoFromPB(v)
+	}
+	return p
+}
