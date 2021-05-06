@@ -5,8 +5,6 @@ import (
 
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotsub"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -17,74 +15,46 @@ const (
 // 香港市场（含正股、窝轮、牛熊、期权、期货）订阅，需要 LV1 及以上的权限，BMP 权限下不支持订阅。
 func (api *FutuAPI) Subscribe(ctx context.Context, securities []*Security, subTypes []qotcommon.SubType,
 	isRegPush bool, isFirstPush bool, isSubOrderBookDetail bool, isExtendedTime bool) error {
-	return api.qotSub(ctx, &qotSubReq{
-		IsSub:                true,
-		Securities:           securities,
-		SubTypes:             subTypes,
-		IsRegPush:            isRegPush,
-		IsFirstPush:          isFirstPush,
-		IsSubOrderBookDetail: isSubOrderBookDetail,
-		IsExtendedTime:       isExtendedTime,
-	})
+	return api.qotSub(ctx, true, securities, subTypes, nil, isRegPush, isFirstPush, isSubOrderBookDetail, isExtendedTime, false)
 }
 
 // 取消订阅
 func (api *FutuAPI) Unsubscribe(ctx context.Context, securities []*Security, subTypes []qotcommon.SubType) error {
-	return api.qotSub(ctx, &qotSubReq{
-		Securities: securities,
-		SubTypes:   subTypes,
-	})
+	return api.qotSub(ctx, false, securities, subTypes, nil, false, false, false, false, false)
 }
 
 // 取消所有订阅
 func (api *FutuAPI) UnsubscribeAll(ctx context.Context) error {
-	return api.qotSub(ctx, &qotSubReq{
-		IsUnsubAll: true,
-	})
+	return api.qotSub(ctx, false, nil, nil, nil, false, false, false, false, true)
 }
 
-type qotSubReq struct {
-	IsSub                bool
-	Securities           []*Security
-	SubTypes             []qotcommon.SubType
-	RehabTypes           []qotcommon.RehabType
-	IsRegPush            bool
-	IsFirstPush          bool
-	IsSubOrderBookDetail bool
-	IsExtendedTime       bool
-	IsUnsubAll           bool
-}
-
-func (req qotSubReq) pb() *qotsub.Request {
+func (api *FutuAPI) qotSub(ctx context.Context, isSub bool, securities []*Security, subTypes []qotcommon.SubType, rehabTypes []qotcommon.RehabType,
+	isRegPush bool, isFirstPush bool, isSubOrderBookDetail bool, isExtendedTime bool, isUnsubAll bool) error {
 	r := qotsub.Request{
 		C2S: &qotsub.C2S{
-			SecurityList:         securityList(req.Securities).pb(),
-			IsSubOrUnSub:         &req.IsSub,
-			IsRegOrUnRegPush:     &req.IsRegPush,
-			IsFirstPush:          &req.IsFirstPush,
-			IsUnsubAll:           &req.IsUnsubAll,
-			IsSubOrderBookDetail: &req.IsSubOrderBookDetail,
-			ExtendedTime:         &req.IsExtendedTime,
+			SecurityList:         securityList(securities).pb(),
+			IsSubOrUnSub:         &isSub,
+			IsRegOrUnRegPush:     &isRegPush,
+			IsFirstPush:          &isFirstPush,
+			IsUnsubAll:           &isUnsubAll,
+			IsSubOrderBookDetail: &isSubOrderBookDetail,
+			ExtendedTime:         &isExtendedTime,
 		},
 	}
-	if req.SubTypes != nil {
-		r.C2S.SubTypeList = make([]int32, len(req.SubTypes))
-		for i, v := range req.SubTypes {
+	if subTypes != nil {
+		r.C2S.SubTypeList = make([]int32, len(subTypes))
+		for i, v := range subTypes {
 			r.C2S.SubTypeList[i] = int32(v)
 		}
 	}
-	if req.RehabTypes != nil {
-		r.C2S.RegPushRehabTypeList = make([]int32, len(req.RehabTypes))
-		for i, v := range req.RehabTypes {
+	if rehabTypes != nil {
+		r.C2S.RegPushRehabTypeList = make([]int32, len(rehabTypes))
+		for i, v := range rehabTypes {
 			r.C2S.RegPushRehabTypeList[i] = int32(v)
 		}
 	}
-	return &r
-}
-
-func (api *FutuAPI) qotSub(ctx context.Context, req *qotSubReq) error {
-	ch := make(qotSubChan)
-	if err := api.get(ProtoIDQotSub, req.pb(), ch); err != nil {
+	ch := make(qotsub.ResponseChan)
+	if err := api.get(ProtoIDQotSub, &r, ch); err != nil {
 		return err
 	}
 	select {
@@ -96,21 +66,4 @@ func (api *FutuAPI) qotSub(ctx context.Context, req *qotSubReq) error {
 		}
 		return result(resp)
 	}
-}
-
-type qotSubChan chan *qotsub.Response
-
-var _ protocol.RespChan = make(qotSubChan)
-
-func (ch qotSubChan) Send(b []byte) error {
-	var resp qotsub.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
-}
-
-func (ch qotSubChan) Close() {
-	close(ch)
 }

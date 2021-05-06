@@ -5,8 +5,6 @@ import (
 
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotgetkl"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -15,7 +13,7 @@ const (
 
 // 获取实时 K 线
 func (api *FutuAPI) GetCurKL(ctx context.Context, sec *Security, num int32, rehabType qotcommon.RehabType, klType qotcommon.KLType) (*CurKLine, error) {
-	ch := make(qotGetKLChan)
+	ch := make(qotgetkl.ResponseChan)
 	if err := api.get(ProtoIDQotGetKL, &qotgetkl.Request{
 		C2S: &qotgetkl.C2S{
 			Security:  sec.pb(),
@@ -50,21 +48,4 @@ func curKLineFromPB(pb *qotgetkl.S2C) *CurKLine {
 		Security: securityFromPB(pb.GetSecurity()),
 		KLines:   kLineListFromPB(pb.GetKlList()),
 	}
-}
-
-type qotGetKLChan chan *qotgetkl.Response
-
-var _ protocol.RespChan = make(qotGetKLChan)
-
-func (ch qotGetKLChan) Send(b []byte) error {
-	var resp qotgetkl.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
-}
-
-func (ch qotGetKLChan) Close() {
-	close(ch)
 }

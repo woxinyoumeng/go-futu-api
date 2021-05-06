@@ -5,8 +5,6 @@ import (
 
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotgetsubinfo"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -15,7 +13,7 @@ const (
 
 // 获取订阅信息
 func (api *FutuAPI) QuerySubscription(ctx context.Context, isAll bool) (*Subscription, error) {
-	ch := make(qotGetSubInfoChan)
+	ch := make(qotgetsubinfo.ResponseChan)
 	if err := api.get(ProtoIDQotGetSubInfo, &qotgetsubinfo.Request{C2S: &qotgetsubinfo.C2S{
 		IsReqAllConn: &isAll,
 	}}, ch); err != nil {
@@ -97,21 +95,4 @@ func subInfoFromPB(pb *qotcommon.SubInfo) *SubInfo {
 		}
 	}
 	return &info
-}
-
-type qotGetSubInfoChan chan *qotgetsubinfo.Response
-
-var _ protocol.RespChan = make(qotGetSubInfoChan)
-
-func (ch qotGetSubInfoChan) Send(b []byte) error {
-	var resp qotgetsubinfo.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
-}
-
-func (ch qotGetSubInfoChan) Close() {
-	close(ch)
 }

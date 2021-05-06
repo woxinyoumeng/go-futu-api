@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetorderbook"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -14,7 +12,7 @@ const (
 
 // 获取实时摆盘
 func (api *FutuAPI) GetOrderBook(ctx context.Context, sec *Security, num int32) (*RTOrderBook, error) {
-	ch := make(getOrderBookChan)
+	ch := make(qotgetorderbook.ResponseChan)
 	if err := api.get(ProtoIDQotGetOrderBook, &qotgetorderbook.Request{
 		C2S: &qotgetorderbook.C2S{
 			Security: sec.pb(),
@@ -47,21 +45,4 @@ func rtOrderBookFromGetPB(pb *qotgetorderbook.S2C) *RTOrderBook {
 		SvrRecvTimeAsk:          pb.GetSvrRecvTimeAsk(),
 		SvrRecvTimeAskTimestamp: pb.GetSvrRecvTimeAskTimestamp(),
 	}
-}
-
-type getOrderBookChan chan *qotgetorderbook.Response
-
-var _ protocol.RespChan = make(getOrderBookChan)
-
-func (ch getOrderBookChan) Send(b []byte) error {
-	var resp qotgetorderbook.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
-}
-
-func (ch getOrderBookChan) Close() {
-	close(ch)
 }

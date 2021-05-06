@@ -21,9 +21,7 @@ const (
 
 	ProtoIDQotUpdatePriceReminder = 3019 //Qot_UpdatePriceReminder	到价提醒通知
 
-	ProtoIDQotRequestHistoryKL      = 3103 //Qot_RequestHistoryKL	在线获取单只股票一段历史 K 线
 	ProtoIDQotRequestHistoryKLQuota = 3104 //Qot_RequestHistoryKLQuota	获取历史 K 线额度
-	ProtoIDQotRequestRehab          = 3105 //Qot_RequestRehab	在线获取单只股票复权信息
 
 	ProtoIDQotGetStaticInfo        = 3202 //Qot_GetStaticInfo	获取股票静态信息
 	ProtoIDQotGetPlateSet          = 3204 //Qot_GetPlateSet	获取板块集合下的板块

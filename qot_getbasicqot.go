@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetbasicqot"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -14,7 +12,7 @@ const (
 
 // 获取股票基本行情
 func (api *FutuAPI) GetStockQuote(ctx context.Context, securities []*Security) ([]*BasicQot, error) {
-	ch := make(qotGetBasicQotChan)
+	ch := make(qotgetbasicqot.ResponseChan)
 	if err := api.get(ProtoIDQotGetBasicQot, &qotgetbasicqot.Request{
 		C2S: &qotgetbasicqot.C2S{
 			SecurityList: securityList(securities).pb(),
@@ -31,20 +29,4 @@ func (api *FutuAPI) GetStockQuote(ctx context.Context, securities []*Security) (
 		}
 		return basicQotListFromPB(resp.GetS2C().GetBasicQotList()), nil
 	}
-}
-
-type qotGetBasicQotChan chan *qotgetbasicqot.Response
-
-var _ protocol.RespChan = make(qotGetBasicQotChan)
-
-func (ch qotGetBasicQotChan) Send(b []byte) error {
-	var resp qotgetbasicqot.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (ch qotGetBasicQotChan) Close() {
-	close(ch)
 }

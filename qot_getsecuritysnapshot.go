@@ -5,8 +5,6 @@ import (
 
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotgetsecuritysnapshot"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -15,7 +13,7 @@ const (
 
 // 获取快照
 func (api *FutuAPI) GetMarketSnapshot(ctx context.Context, securities []*Security) ([]*Snapshot, error) {
-	ch := make(snapshotChan)
+	ch := make(qotgetsecuritysnapshot.ResponseChan)
 	if err := api.get(ProtoIDQotGetSecuritySnapshot, &qotgetsecuritysnapshot.Request{
 		C2S: &qotgetsecuritysnapshot.C2S{
 			SecurityList: securityList(securities).pb(),
@@ -32,23 +30,6 @@ func (api *FutuAPI) GetMarketSnapshot(ctx context.Context, securities []*Securit
 		}
 		return snapshotListFromPB(resp.GetS2C().GetSnapshotList()), result(resp)
 	}
-}
-
-type snapshotChan chan *qotgetsecuritysnapshot.Response
-
-var _ protocol.RespChan = make(snapshotChan)
-
-func (ch snapshotChan) Send(b []byte) error {
-	var resp qotgetsecuritysnapshot.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
-}
-
-func (ch snapshotChan) Close() {
-	close(ch)
 }
 
 type Snapshot struct {

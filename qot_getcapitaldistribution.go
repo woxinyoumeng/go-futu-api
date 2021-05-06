@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetcapitaldistribution"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -14,7 +12,7 @@ const (
 
 // 获取资金分布
 func (api *FutuAPI) GetCapitalDistribution(ctx context.Context, security *Security) (*CapitalDistribution, error) {
-	ch := make(capitalDistChan)
+	ch := make(qotgetcapitaldistribution.ResponseChan)
 	if err := api.get(ProtoIDQotGetCapitalDistribution, &qotgetcapitaldistribution.Request{}, ch); err != nil {
 		return nil, err
 	}
@@ -27,23 +25,6 @@ func (api *FutuAPI) GetCapitalDistribution(ctx context.Context, security *Securi
 		}
 		return capitalDistributionFromPB(resp.GetS2C()), result(resp)
 	}
-}
-
-type capitalDistChan chan *qotgetcapitaldistribution.Response
-
-var _ protocol.RespChan = make(capitalDistChan)
-
-func (ch capitalDistChan) Close() {
-	close(ch)
-}
-
-func (ch capitalDistChan) Send(b []byte) error {
-	var resp qotgetcapitaldistribution.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
 }
 
 // 根据历史成交数据将逐笔成交记录划分成大单，中单，小单。以正股前一个月（或窝轮前三天）的平均每笔成交额为参考值，小于该平均值为小单，大于等于该金额的10倍为大单，其余为中单。

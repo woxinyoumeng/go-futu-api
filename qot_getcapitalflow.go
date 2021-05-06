@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetcapitalflow"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -14,7 +12,7 @@ const (
 
 //获取资金流向
 func (api *FutuAPI) GetCapitalFlow(ctx context.Context, security *Security) (*CapitalFlow, error) {
-	ch := make(capitalFlowChan)
+	ch := make(qotgetcapitalflow.ResponseChan)
 	if err := api.get(ProtoIDQotGetCapitalFlow, &qotgetcapitalflow.Request{
 		C2S: &qotgetcapitalflow.C2S{
 			Security: security.pb(),
@@ -31,23 +29,6 @@ func (api *FutuAPI) GetCapitalFlow(ctx context.Context, security *Security) (*Ca
 		}
 		return capitalFlowFromPB(resp.GetS2C()), result(resp)
 	}
-}
-
-type capitalFlowChan chan *qotgetcapitalflow.Response
-
-var _ protocol.RespChan = make(capitalFlowChan)
-
-func (ch capitalFlowChan) Send(b []byte) error {
-	var resp qotgetcapitalflow.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return nil
-	}
-	ch <- &resp
-	return nil
-}
-
-func (ch capitalFlowChan) Close() {
-	close(ch)
 }
 
 type CapitalFlow struct {

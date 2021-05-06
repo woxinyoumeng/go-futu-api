@@ -494,3 +494,71 @@ func plateInfoListFromPB(pb []*qotcommon.PlateInfo) []*PlateInfo {
 	}
 	return p
 }
+
+type Rehab struct {
+	Time         string               //时间字符串
+	CompanyAct   qotcommon.CompanyAct //公司行动(CompanyAct)组合标志位,指定某些字段值是否有效
+	FwdFactorA   float64              //前复权因子 A
+	FwdFactorB   float64              //前复权因子 B
+	BwdFactorA   float64              //后复权因子 A
+	BwdFactorB   float64              //后复权因子 B
+	SplitBase    int32                //拆股(例如，1拆5，Base 为1，Ert 为5)
+	SplitErt     int32
+	JoinBase     int32 //合股(例如，50合1，Base 为50，Ert 为1)
+	JoinErt      int32
+	BonusBase    int32 //送股(例如，10送3, Base 为10,Ert 为3)
+	BonusErt     int32
+	TransferBase int32 //转赠股(例如，10转3, Base 为10,Ert 为3)
+	TransferErt  int32
+	AllotBase    int32 //配股(例如，10送2, 配股价为6.3元, Base 为10, Ert 为2, Price 为6.3)
+	AllotErt     int32
+	AllotPrice   float64
+	AddBase      int32 //增发股(例如，10送2, 增发股价为6.3元, Base 为10, Ert 为2, Price 为6.3)
+	AddErt       int32
+	AddPrice     float64
+	Dividend     float64 //现金分红(例如，每10股派现0.5元,则该字段值为0.05)
+	SpDividend   float64 //特别股息(例如，每10股派特别股息0.5元,则该字段值为0.05)
+	Timestamp    float64 //时间戳
+}
+
+func rehabFromPB(pb *qotcommon.Rehab) *Rehab {
+	if pb == nil {
+		return nil
+	}
+	return &Rehab{
+		Time:         pb.GetTime(),
+		CompanyAct:   qotcommon.CompanyAct(pb.GetCompanyActFlag()),
+		FwdFactorA:   pb.GetFwdFactorA(),
+		FwdFactorB:   pb.GetFwdFactorB(),
+		BwdFactorA:   pb.GetBwdFactorA(),
+		BwdFactorB:   pb.GetBwdFactorB(),
+		SplitBase:    pb.GetSplitBase(),
+		SplitErt:     pb.GetSplitErt(),
+		JoinBase:     pb.GetJoinBase(),
+		JoinErt:      pb.GetJoinErt(),
+		BonusBase:    pb.GetBonusBase(),
+		BonusErt:     pb.GetBonusErt(),
+		TransferBase: pb.GetTransferBase(),
+		TransferErt:  pb.GetTransferErt(),
+		AllotBase:    pb.GetAllotBase(),
+		AllotErt:     pb.GetAllotErt(),
+		AllotPrice:   pb.GetAllotPrice(),
+		AddBase:      pb.GetAddBase(),
+		AddErt:       pb.GetAddErt(),
+		AddPrice:     pb.GetAddPrice(),
+		Dividend:     pb.GetDividend(),
+		SpDividend:   pb.GetSpDividend(),
+		Timestamp:    pb.GetTimestamp(),
+	}
+}
+
+func rehabListFromPB(pb []*qotcommon.Rehab) []*Rehab {
+	if pb == nil {
+		return nil
+	}
+	r := make([]*Rehab, len(pb))
+	for i, v := range pb {
+		r[i] = rehabFromPB(v)
+	}
+	return r
+}

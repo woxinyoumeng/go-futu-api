@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetownerplate"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -14,7 +12,7 @@ const (
 
 // 获取股票所属板块
 func (api *FutuAPI) GetOwnerPlate(ctx context.Context, securities []*Security) ([]*OwnerPlate, error) {
-	ch := make(ownerPlateChan)
+	ch := make(qotgetownerplate.ResponseChan)
 	if err := api.get(ProtoIDQotGetOwnerPlate, &qotgetownerplate.Request{
 		C2S: &qotgetownerplate.C2S{
 			SecurityList: securityList(securities).pb(),
@@ -31,23 +29,6 @@ func (api *FutuAPI) GetOwnerPlate(ctx context.Context, securities []*Security) (
 		}
 		return ownerPlateListFromPB(resp.GetS2C().GetOwnerPlateList()), result(resp)
 	}
-}
-
-type ownerPlateChan chan *qotgetownerplate.Response
-
-var _ protocol.RespChan = make(ownerPlateChan)
-
-func (ch ownerPlateChan) Close() {
-	close(ch)
-}
-
-func (ch ownerPlateChan) Send(b []byte) error {
-	var resp qotgetownerplate.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
 }
 
 type OwnerPlate struct {

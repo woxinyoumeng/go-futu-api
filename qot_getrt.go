@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetrt"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -14,7 +12,7 @@ const (
 
 // 获取实时分时
 func (api *FutuAPI) GetRTData(ctx context.Context, sec *Security) (*RTData, error) {
-	ch := make(rtDataChan)
+	ch := make(qotgetrt.ResponseChan)
 	if err := api.get(ProtoIDQotGetRT, &qotgetrt.Request{C2S: &qotgetrt.C2S{
 		Security: sec.pb(),
 	}}, ch); err != nil {
@@ -39,21 +37,4 @@ func rtDataFromGetPB(pb *qotgetrt.S2C) *RTData {
 		Security:   securityFromPB(pb.GetSecurity()),
 		TimeShares: timeShareListFromPB(pb.GetRtList()),
 	}
-}
-
-type rtDataChan chan *qotgetrt.Response
-
-var _ protocol.RespChan = make(rtDataChan)
-
-func (ch rtDataChan) Send(b []byte) error {
-	var resp qotgetrt.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
-}
-
-func (ch rtDataChan) Close() {
-	close(ch)
 }

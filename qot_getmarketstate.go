@@ -5,8 +5,6 @@ import (
 
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotgetmarketstate"
-	"github.com/hurisheng/go-futu-api/protocol"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -15,7 +13,7 @@ const (
 
 //获取标的市场状态
 func (api *FutuAPI) GetMarketState(ctx context.Context, securities []*Security) ([]*MarketInfo, error) {
-	ch := make(marketStateChan)
+	ch := make(qotgetmarketstate.ResponseChan)
 	if err := api.get(ProtoIDQotGetMarketState, &qotgetmarketstate.Request{
 		C2S: &qotgetmarketstate.C2S{
 			SecurityList: securityList(securities).pb(),
@@ -32,23 +30,6 @@ func (api *FutuAPI) GetMarketState(ctx context.Context, securities []*Security) 
 		}
 		return marketInfoListFromPB(resp.GetS2C().GetMarketInfoList()), result(resp)
 	}
-}
-
-type marketStateChan chan *qotgetmarketstate.Response
-
-var _ protocol.RespChan = make(marketStateChan)
-
-func (ch marketStateChan) Send(b []byte) error {
-	var resp qotgetmarketstate.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
-}
-
-func (ch marketStateChan) Close() {
-	close(ch)
 }
 
 func marketInfoListFromPB(pb []*qotgetmarketstate.MarketInfo) []*MarketInfo {
