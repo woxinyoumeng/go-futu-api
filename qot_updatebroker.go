@@ -13,40 +13,37 @@ const (
 )
 
 // 实时经纪队列回调
-func (api *FutuAPI) UpdateBroker(ctx context.Context) (*UpdateBrokerChan, error) {
-	ch := UpdateBrokerChan{
-		BrokerQueue: make(chan *BrokerQueue),
-		Err:         make(chan error),
-	}
-	if err := api.update(ProtoIDQotUpdateBroker, &ch); err != nil {
+func (api *FutuAPI) UpdateBroker(ctx context.Context) (<-chan *UpdateBrokerResp, error) {
+	ch := make(updateBrokerChan)
+	if err := api.update(ProtoIDQotUpdateBroker, ch); err != nil {
 		return nil, err
 	}
-	return &ch, nil
+	return ch, nil
 }
 
-type UpdateBrokerChan struct {
-	BrokerQueue chan *BrokerQueue
-	Err         chan error
+type UpdateBrokerResp struct {
+	BrokerQueue *BrokerQueue
+	Err         error
 }
 
-var _ protocol.RespChan = (*UpdateBrokerChan)(nil)
+type updateBrokerChan chan *UpdateBrokerResp
 
-func (ch *UpdateBrokerChan) Send(b []byte) error {
+var _ protocol.RespChan = make(updateBrokerChan)
+
+func (ch updateBrokerChan) Send(b []byte) error {
 	var resp qotupdatebroker.Response
 	if err := proto.Unmarshal(b, &resp); err != nil {
 		return err
 	}
-	if err := result(&resp); err != nil {
-		ch.Err <- err
-	} else {
-		ch.BrokerQueue <- brokerQueueFromUpdatePB(resp.GetS2C())
+	ch <- &UpdateBrokerResp{
+		BrokerQueue: brokerQueueFromUpdatePB(resp.GetS2C()),
+		Err:         protocol.Error(&resp),
 	}
 	return nil
 }
 
-func (ch *UpdateBrokerChan) Close() {
-	close(ch.BrokerQueue)
-	close(ch.Err)
+func (ch updateBrokerChan) Close() {
+	close(ch)
 }
 
 func brokerQueueFromUpdatePB(pb *qotupdatebroker.S2C) *BrokerQueue {

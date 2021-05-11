@@ -5,6 +5,7 @@ import (
 
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotgetkl"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -12,16 +13,19 @@ const (
 )
 
 // 获取实时 K 线
-func (api *FutuAPI) GetCurKL(ctx context.Context, sec *Security, num int32, rehabType qotcommon.RehabType, klType qotcommon.KLType) (*CurKLine, error) {
-	ch := make(qotgetkl.ResponseChan)
-	if err := api.get(ProtoIDQotGetKL, &qotgetkl.Request{
+func (api *FutuAPI) GetCurKL(ctx context.Context, security *Security, num int32, rehabType qotcommon.RehabType, klType qotcommon.KLType) (*RTKLine, error) {
+	// 请求参数
+	req := qotgetkl.Request{
 		C2S: &qotgetkl.C2S{
-			Security:  sec.pb(),
+			Security:  security.pb(),
 			ReqNum:    &num,
 			RehabType: (*int32)(&rehabType),
 			KlType:    (*int32)(&klType),
 		},
-	}, ch); err != nil {
+	}
+	// 发送请求，同步返回结果
+	ch := make(qotgetkl.ResponseChan)
+	if err := api.get(ProtoIDQotGetKL, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -31,21 +35,18 @@ func (api *FutuAPI) GetCurKL(ctx context.Context, sec *Security, num int32, reha
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return curKLineFromPB(resp.GetS2C()), result(resp)
+		return rtKLineFromGetPB(resp.GetS2C(), rehabType, klType), protocol.Error(resp)
 	}
 }
 
-type CurKLine struct {
-	Security *Security
-	KLines   []*KLine
-}
-
-func curKLineFromPB(pb *qotgetkl.S2C) *CurKLine {
+func rtKLineFromGetPB(pb *qotgetkl.S2C, rehabType qotcommon.RehabType, klType qotcommon.KLType) *RTKLine {
 	if pb == nil {
 		return nil
 	}
-	return &CurKLine{
-		Security: securityFromPB(pb.GetSecurity()),
-		KLines:   kLineListFromPB(pb.GetKlList()),
+	return &RTKLine{
+		RehabType: rehabType,
+		KLType:    klType,
+		Security:  securityFromPB(pb.GetSecurity()),
+		KLines:    kLineListFromPB(pb.GetKlList()),
 	}
 }

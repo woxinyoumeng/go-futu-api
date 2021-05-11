@@ -36,12 +36,10 @@ func TestConnect(t *testing.T) {
 		t.Error(err)
 	}
 	select {
-	case notify := <-nCh.Notification:
+	case notify := <-nCh:
 		t.Error(notify)
-	case ticker := <-tCh.Ticker:
+	case ticker := <-tCh:
 		t.Error(ticker)
-	case err := <-tCh.Err:
-		t.Error(err)
 	}
 
 	if sub, err := api.QuerySubscription(context.Background(), true); err != nil {

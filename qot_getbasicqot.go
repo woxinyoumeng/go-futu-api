@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetbasicqot"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -12,12 +13,15 @@ const (
 
 // 获取股票基本行情
 func (api *FutuAPI) GetStockQuote(ctx context.Context, securities []*Security) ([]*BasicQot, error) {
-	ch := make(qotgetbasicqot.ResponseChan)
-	if err := api.get(ProtoIDQotGetBasicQot, &qotgetbasicqot.Request{
+	// 请求参数
+	req := qotgetbasicqot.Request{
 		C2S: &qotgetbasicqot.C2S{
 			SecurityList: securityList(securities).pb(),
 		},
-	}, ch); err != nil {
+	}
+	// 发送请求，同步返回结果
+	ch := make(qotgetbasicqot.ResponseChan)
+	if err := api.get(ProtoIDQotGetBasicQot, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -27,6 +31,6 @@ func (api *FutuAPI) GetStockQuote(ctx context.Context, securities []*Security) (
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return basicQotListFromPB(resp.GetS2C().GetBasicQotList()), nil
+		return basicQotListFromPB(resp.GetS2C().GetBasicQotList()), protocol.Error(resp)
 	}
 }

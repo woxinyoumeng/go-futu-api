@@ -5,6 +5,7 @@ import (
 
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotgetmarketstate"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -13,12 +14,15 @@ const (
 
 //获取标的市场状态
 func (api *FutuAPI) GetMarketState(ctx context.Context, securities []*Security) ([]*MarketInfo, error) {
-	ch := make(qotgetmarketstate.ResponseChan)
-	if err := api.get(ProtoIDQotGetMarketState, &qotgetmarketstate.Request{
+	// 请求参数
+	req := qotgetmarketstate.Request{
 		C2S: &qotgetmarketstate.C2S{
 			SecurityList: securityList(securities).pb(),
 		},
-	}, ch); err != nil {
+	}
+	// 发送请求，同步返回结果
+	ch := make(qotgetmarketstate.ResponseChan)
+	if err := api.get(ProtoIDQotGetMarketState, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -28,7 +32,7 @@ func (api *FutuAPI) GetMarketState(ctx context.Context, securities []*Security) 
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return marketInfoListFromPB(resp.GetS2C().GetMarketInfoList()), result(resp)
+		return marketInfoListFromPB(resp.GetS2C().GetMarketInfoList()), protocol.Error(resp)
 	}
 }
 

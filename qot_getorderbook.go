@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetorderbook"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -11,14 +12,17 @@ const (
 )
 
 // 获取实时摆盘
-func (api *FutuAPI) GetOrderBook(ctx context.Context, sec *Security, num int32) (*RTOrderBook, error) {
-	ch := make(qotgetorderbook.ResponseChan)
-	if err := api.get(ProtoIDQotGetOrderBook, &qotgetorderbook.Request{
+func (api *FutuAPI) GetOrderBook(ctx context.Context, security *Security, num int32) (*RTOrderBook, error) {
+	// 请求参数
+	req := qotgetorderbook.Request{
 		C2S: &qotgetorderbook.C2S{
-			Security: sec.pb(),
+			Security: security.pb(),
 			Num:      &num,
 		},
-	}, ch); err != nil {
+	}
+	// 发送请求，同步返回结果
+	ch := make(qotgetorderbook.ResponseChan)
+	if err := api.get(ProtoIDQotGetOrderBook, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -28,7 +32,7 @@ func (api *FutuAPI) GetOrderBook(ctx context.Context, sec *Security, num int32) 
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return rtOrderBookFromGetPB(resp.GetS2C()), result(resp)
+		return rtOrderBookFromGetPB(resp.GetS2C()), protocol.Error(resp)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetbroker"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -11,13 +12,16 @@ const (
 )
 
 // 获取实时经纪队列
-func (api *FutuAPI) GetBrokerQueue(ctx context.Context, sec *Security) (*BrokerQueue, error) {
-	ch := make(qotgetbroker.ResponseChan)
-	if err := api.get(ProtoIDQotGetBroker, &qotgetbroker.Request{
+func (api *FutuAPI) GetBrokerQueue(ctx context.Context, security *Security) (*BrokerQueue, error) {
+	// 请求参数
+	req := qotgetbroker.Request{
 		C2S: &qotgetbroker.C2S{
-			Security: sec.pb(),
+			Security: security.pb(),
 		},
-	}, ch); err != nil {
+	}
+	// 发送请求，同步返回结果
+	ch := make(qotgetbroker.ResponseChan)
+	if err := api.get(ProtoIDQotGetBroker, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -27,7 +31,7 @@ func (api *FutuAPI) GetBrokerQueue(ctx context.Context, sec *Security) (*BrokerQ
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return brokerQueueFromGetPB(resp.GetS2C()), result(resp)
+		return brokerQueueFromGetPB(resp.GetS2C()), protocol.Error(resp)
 	}
 }
 

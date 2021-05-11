@@ -5,6 +5,7 @@ import (
 
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotrequesthistorykl"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -14,21 +15,28 @@ const (
 // 获取历史 K 线
 func (api *FutuAPI) RequestHistoryKLine(ctx context.Context, security *Security, begin string, end string, klType qotcommon.KLType, rehabType qotcommon.RehabType,
 	maxNum int32, fields qotcommon.KLFields, nextKey []byte, extTime bool) (*HistoryKLine, error) {
-	var klFields int64 = int64(fields)
-	ch := make(qotrequesthistorykl.ResponseChan)
-	if err := api.get(ProtoIDQotRequestHistoryKL, &qotrequesthistorykl.Request{
+	// 请求参数
+	req := qotrequesthistorykl.Request{
 		C2S: &qotrequesthistorykl.C2S{
-			RehabType:        (*int32)(&rehabType),
-			KlType:           (*int32)(&klType),
-			Security:         security.pb(),
-			BeginTime:        &begin,
-			EndTime:          &end,
-			MaxAckKLNum:      &maxNum,
-			NeedKLFieldsFlag: &klFields,
-			NextReqKey:       nextKey,
-			ExtendedTime:     &extTime,
+			RehabType:    (*int32)(&rehabType),
+			KlType:       (*int32)(&klType),
+			Security:     security.pb(),
+			BeginTime:    &begin,
+			EndTime:      &end,
+			NextReqKey:   nextKey,
+			ExtendedTime: &extTime,
 		},
-	}, ch); err != nil {
+	}
+	if maxNum != 0 {
+		req.C2S.MaxAckKLNum = &maxNum
+	}
+	if fields != 0 {
+		var klFields int64 = int64(fields)
+		req.C2S.NeedKLFieldsFlag = &klFields
+	}
+	// 发送请求，同步返回结果
+	ch := make(qotrequesthistorykl.ResponseChan)
+	if err := api.get(ProtoIDQotRequestHistoryKL, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -38,7 +46,7 @@ func (api *FutuAPI) RequestHistoryKLine(ctx context.Context, security *Security,
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return historyKLineFromPB(resp.GetS2C()), result(resp)
+		return historyKLineFromPB(resp.GetS2C()), protocol.Error(resp)
 	}
 }
 
@@ -52,13 +60,18 @@ func historyKLineFromPB(pb *qotrequesthistorykl.S2C) *HistoryKLine {
 	if pb == nil {
 		return nil
 	}
-	h := HistoryKLine{
+	return &HistoryKLine{
 		Security: securityFromPB(pb.GetSecurity()),
 		KLines:   kLineListFromPB(pb.GetKlList()),
+		NextKey:  nextKeyFromPB(pb.GetNextReqKey()),
 	}
-	if list := pb.GetNextReqKey(); list != nil {
-		h.NextKey = make([]byte, len(list))
-		copy(h.NextKey, list)
+}
+
+func nextKeyFromPB(pb []byte) []byte {
+	if pb == nil {
+		return nil
 	}
-	return &h
+	k := make([]byte, len(pb))
+	copy(k, pb)
+	return k
 }

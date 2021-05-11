@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetrt"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -11,11 +12,14 @@ const (
 )
 
 // 获取实时分时
-func (api *FutuAPI) GetRTData(ctx context.Context, sec *Security) (*RTData, error) {
+func (api *FutuAPI) GetRTData(ctx context.Context, security *Security) (*RTData, error) {
+	// 请求参数
+	req := qotgetrt.Request{C2S: &qotgetrt.C2S{
+		Security: security.pb(),
+	}}
+	// 发送请求，同步返回结果
 	ch := make(qotgetrt.ResponseChan)
-	if err := api.get(ProtoIDQotGetRT, &qotgetrt.Request{C2S: &qotgetrt.C2S{
-		Security: sec.pb(),
-	}}, ch); err != nil {
+	if err := api.get(ProtoIDQotGetRT, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -25,7 +29,7 @@ func (api *FutuAPI) GetRTData(ctx context.Context, sec *Security) (*RTData, erro
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return rtDataFromGetPB(resp.GetS2C()), result(resp)
+		return rtDataFromGetPB(resp.GetS2C()), protocol.Error(resp)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotrequestrehab"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -12,12 +13,15 @@ const (
 
 // 获取复权因子
 func (api *FutuAPI) GetRehab(ctx context.Context, security *Security) ([]*Rehab, error) {
-	ch := make(qotrequestrehab.ResponseChan)
-	if err := api.get(ProtoIDQotRequestRehab, &qotrequestrehab.Request{
+	// 请求参数
+	req := qotrequestrehab.Request{
 		C2S: &qotrequestrehab.C2S{
 			Security: security.pb(),
 		},
-	}, ch); err != nil {
+	}
+	// 发送请求，同步返回结果
+	ch := make(qotrequestrehab.ResponseChan)
+	if err := api.get(ProtoIDQotRequestRehab, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -27,6 +31,6 @@ func (api *FutuAPI) GetRehab(ctx context.Context, security *Security) ([]*Rehab,
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return rehabListFromPB(resp.GetS2C().GetRehabList()), result(resp)
+		return rehabListFromPB(resp.GetS2C().GetRehabList()), protocol.Error(resp)
 	}
 }

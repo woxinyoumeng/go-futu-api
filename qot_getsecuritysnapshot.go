@@ -5,6 +5,7 @@ import (
 
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotgetsecuritysnapshot"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -13,12 +14,15 @@ const (
 
 // 获取快照
 func (api *FutuAPI) GetMarketSnapshot(ctx context.Context, securities []*Security) ([]*Snapshot, error) {
-	ch := make(qotgetsecuritysnapshot.ResponseChan)
-	if err := api.get(ProtoIDQotGetSecuritySnapshot, &qotgetsecuritysnapshot.Request{
+	// 请求参数
+	req := qotgetsecuritysnapshot.Request{
 		C2S: &qotgetsecuritysnapshot.C2S{
 			SecurityList: securityList(securities).pb(),
 		},
-	}, ch); err != nil {
+	}
+	// 发送请求，同步返回结果
+	ch := make(qotgetsecuritysnapshot.ResponseChan)
+	if err := api.get(ProtoIDQotGetSecuritySnapshot, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -28,7 +32,7 @@ func (api *FutuAPI) GetMarketSnapshot(ctx context.Context, securities []*Securit
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return snapshotListFromPB(resp.GetS2C().GetSnapshotList()), result(resp)
+		return snapshotListFromPB(resp.GetS2C().GetSnapshotList()), protocol.Error(resp)
 	}
 }
 

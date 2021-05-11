@@ -10,7 +10,10 @@ type Security struct {
 	Code   string              //*股票代码
 }
 
-func (s Security) pb() *qotcommon.Security {
+func (s *Security) pb() *qotcommon.Security {
+	if s == nil {
+		return nil
+	}
 	return &qotcommon.Security{
 		Market: (*int32)(&s.Market),
 		Code:   &s.Code,
@@ -40,16 +43,72 @@ func (s securityList) pb() []*qotcommon.Security {
 	return li
 }
 
-// func securityListFromPB(pb []*qotcommon.Security) []*Security {
-// 	if pb == nil {
-// 		return nil
-// 	}
-// 	s := make(securityList, len(pb))
-// 	for i, v := range pb {
-// 		s[i] = securityFromPB(v)
-// 	}
-// 	return s
-// }
+func securityListFromPB(pb []*qotcommon.Security) []*Security {
+	if pb == nil {
+		return nil
+	}
+	list := make([]*Security, len(pb))
+	for i, v := range pb {
+		list[i] = securityFromPB(v)
+	}
+	return list
+}
+
+// 单条连接订阅信息
+type ConnSubInfo struct {
+	SubInfos  []*SubInfo //该连接订阅信息
+	UsedQuota int32      //*该连接已经使用的订阅额度
+	IsOwnData bool       //*用于区分是否是自己连接的数据
+}
+
+func connSubInfoFromPB(pb *qotcommon.ConnSubInfo) *ConnSubInfo {
+	if pb == nil {
+		return nil
+	}
+	return &ConnSubInfo{
+		SubInfos:  subInfoListFromPB(pb.GetSubInfoList()),
+		UsedQuota: pb.GetUsedQuota(),
+		IsOwnData: pb.GetIsOwnConnData(),
+	}
+}
+
+func connSubInfoListFromPB(pb []*qotcommon.ConnSubInfo) []*ConnSubInfo {
+	if pb == nil {
+		return nil
+	}
+	list := make([]*ConnSubInfo, len(pb))
+	for i, v := range pb {
+		list[i] = connSubInfoFromPB(v)
+	}
+	return list
+}
+
+// 单个订阅类型信息
+type SubInfo struct {
+	SubType    qotcommon.SubType //*Qot_Common.SubType,订阅类型
+	Securities []*Security       //订阅该类型行情的证券
+}
+
+func subInfoFromPB(pb *qotcommon.SubInfo) *SubInfo {
+	if pb == nil {
+		return nil
+	}
+	return &SubInfo{
+		SubType:    qotcommon.SubType(pb.GetSubType()),
+		Securities: securityListFromPB(pb.GetSecurityList()),
+	}
+}
+
+func subInfoListFromPB(pb []*qotcommon.SubInfo) []*SubInfo {
+	if pb == nil {
+		return nil
+	}
+	list := make([]*SubInfo, len(pb))
+	for i, v := range pb {
+		list[i] = subInfoFromPB(v)
+	}
+	return list
+}
 
 // 基础报价的期权特有字段
 type OptionBasicQotExData struct {
@@ -226,18 +285,23 @@ func orderBookFromPB(pb *qotcommon.OrderBook) *OrderBook {
 	if pb == nil {
 		return nil
 	}
-	item := OrderBook{
+	return &OrderBook{
 		Price:      pb.GetPrice(),
 		Volume:     pb.GetVolume(),
 		OrderCount: pb.GetOrederCount(),
+		Details:    orderBookDetailListFromPB(pb.GetDetailList()),
 	}
-	if list := pb.GetDetailList(); list != nil {
-		item.Details = make([]*OrderBookDetail, len(list))
-		for i, v := range list {
-			item.Details[i] = orderBookDetailFromPB(v)
-		}
+}
+
+func orderBookListFromPB(pb []*qotcommon.OrderBook) []*OrderBook {
+	if pb == nil {
+		return nil
 	}
-	return &item
+	list := make([]*OrderBook, len(pb))
+	for i, v := range pb {
+		list[i] = orderBookFromPB(v)
+	}
+	return list
 }
 
 // 买卖档明细
@@ -256,15 +320,15 @@ func orderBookDetailFromPB(pb *qotcommon.OrderBookDetail) *OrderBookDetail {
 	}
 }
 
-func orderBookListFromPB(pb []*qotcommon.OrderBook) []*OrderBook {
+func orderBookDetailListFromPB(pb []*qotcommon.OrderBookDetail) []*OrderBookDetail {
 	if pb == nil {
 		return nil
 	}
-	ob := make([]*OrderBook, len(pb))
+	list := make([]*OrderBookDetail, len(pb))
 	for i, v := range pb {
-		ob[i] = orderBookFromPB(v)
+		list[i] = orderBookDetailFromPB(v)
 	}
-	return ob
+	return list
 }
 
 // 实时摆盘
@@ -325,6 +389,14 @@ func kLineListFromPB(pb []*qotcommon.KLine) []*KLine {
 		k[i] = kLineFromPB(v)
 	}
 	return k
+}
+
+// 实时K线
+type RTKLine struct {
+	RehabType qotcommon.RehabType //*Qot_Common.RehabType,复权类型
+	KLType    qotcommon.KLType    //*Qot_Common.KLType,K 线类型
+	Security  *Security           //*股票
+	KLines    []*KLine
 }
 
 // 分时数据
@@ -561,4 +633,114 @@ func rehabListFromPB(pb []*qotcommon.Rehab) []*Rehab {
 		r[i] = rehabFromPB(v)
 	}
 	return r
+}
+
+// 证券静态信息
+type SecurityStaticInfo struct {
+	Basic         *SecurityStaticBasic //证券基本静态信息
+	WarrantExData *WarrantStaticExData //窝轮额外静态信息
+	OptionExData  *OptionStaticExData  //期权额外静态信息
+	FutureExData  *FutureStaticExData  //期货额外静态信息
+}
+
+func securityStaticInfoFromPB(pb *qotcommon.SecurityStaticInfo) *SecurityStaticInfo {
+	if pb == nil {
+		return nil
+	}
+	return &SecurityStaticInfo{
+		Basic:         securityStaticBasicFromPB(pb.GetBasic()),
+		WarrantExData: warrantStaticExDataFromPB(pb.GetWarrantExData()),
+		OptionExData:  optionStaticExDataFromPB(pb.GetOptionExData()),
+		FutureExData:  futureStaticExDataFromPB(pb.GetFutureExData()),
+	}
+}
+
+// 证券基本静态信息
+type SecurityStaticBasic struct {
+	Security      *Security              //股票
+	ID            int64                  //股票 ID
+	LotSize       int32                  //每手数量,期权类型表示一份合约的股数
+	SecType       qotcommon.SecurityType //Qot_Common.SecurityType,股票类型
+	Name          string                 //股票名字
+	ListTime      string                 //上市时间字符串
+	Delisting     bool                   //是否退市
+	ListTimestamp float64                //上市时间戳
+}
+
+func securityStaticBasicFromPB(pb *qotcommon.SecurityStaticBasic) *SecurityStaticBasic {
+	if pb == nil {
+		return nil
+	}
+	return &SecurityStaticBasic{
+		Security:      securityFromPB(pb.GetSecurity()),
+		ID:            pb.GetId(),
+		LotSize:       pb.GetLotSize(),
+		SecType:       qotcommon.SecurityType(pb.GetSecType()),
+		Name:          pb.GetName(),
+		ListTime:      pb.GetListTime(),
+		Delisting:     pb.GetDelisting(),
+		ListTimestamp: pb.GetListTimestamp(),
+	}
+}
+
+// 窝轮额外静态信息
+type WarrantStaticExData struct {
+	Type  qotcommon.WarrantType //Qot_Common.WarrantType,窝轮类型
+	Owner *Security             //所属正股
+}
+
+func warrantStaticExDataFromPB(pb *qotcommon.WarrantStaticExData) *WarrantStaticExData {
+	if pb == nil {
+		return nil
+	}
+	return &WarrantStaticExData{
+		Type:  qotcommon.WarrantType(pb.GetType()),
+		Owner: securityFromPB(pb.GetOwner()),
+	}
+}
+
+// 期权额外静态信息
+type OptionStaticExData struct {
+	Type            qotcommon.OptionType      //Qot_Common.OptionType,期权
+	Owner           *Security                 //标的股
+	StrikeTime      string                    //行权日
+	StrikePrice     float64                   //行权价
+	Suspend         bool                      //是否停牌
+	Market          string                    //发行市场名字
+	StrikeTimestamp float64                   //行权日时间戳
+	IndexOptType    qotcommon.IndexOptionType //Qot_Common.IndexOptionType, 指数期权的类型，仅在指数期权有效
+}
+
+func optionStaticExDataFromPB(pb *qotcommon.OptionStaticExData) *OptionStaticExData {
+	if pb == nil {
+		return nil
+	}
+	return &OptionStaticExData{
+		Type:            qotcommon.OptionType(pb.GetType()),
+		Owner:           securityFromPB(pb.GetOwner()),
+		StrikeTime:      pb.GetStrikeTime(),
+		StrikePrice:     pb.GetStrikePrice(),
+		Suspend:         pb.GetSuspend(),
+		Market:          pb.GetMarket(),
+		StrikeTimestamp: pb.GetStrikeTimestamp(),
+		IndexOptType:    qotcommon.IndexOptionType(pb.GetIndexOptionType()),
+	}
+}
+
+// 期货额外静态信息
+type FutureStaticExData struct {
+	LastTradeTime      string  //最后交易日，只有非主连期货合约才有该字段
+	LastTradeTimestamp float64 //最后交易日时间戳，只有非主连期货合约才有该字段
+	IsMainContract     bool    //是否主连合约
+}
+
+func futureStaticExDataFromPB(pb *qotcommon.FutureStaticExData) *FutureStaticExData {
+	if pb == nil {
+		return nil
+	}
+	return &FutureStaticExData{
+		LastTradeTime:      pb.GetLastTradeTime(),
+		LastTradeTimestamp: pb.GetLastTradeTimestamp(),
+		IsMainContract:     pb.GetIsMainContract(),
+	}
 }

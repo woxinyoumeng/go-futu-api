@@ -4,18 +4,22 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetticker"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
 	ProtoIDQotGetTicker = 3010 //Qot_GetTicker	获取逐笔
 )
 
-func (api *FutuAPI) GetRTTicker(ctx context.Context, sec *Security, num int32) (*RTTicker, error) {
-	ch := make(qotgetticker.ResponseChan)
-	if err := api.get(ProtoIDQotGetTicker, &qotgetticker.Request{C2S: &qotgetticker.C2S{
-		Security:  sec.pb(),
+func (api *FutuAPI) GetRTTicker(ctx context.Context, security *Security, num int32) (*RTTicker, error) {
+	// 请求参数
+	req := qotgetticker.Request{C2S: &qotgetticker.C2S{
+		Security:  security.pb(),
 		MaxRetNum: &num,
-	}}, ch); err != nil {
+	}}
+	// 发送请求，同步返回结果
+	ch := make(qotgetticker.ResponseChan)
+	if err := api.get(ProtoIDQotGetTicker, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -25,7 +29,7 @@ func (api *FutuAPI) GetRTTicker(ctx context.Context, sec *Security, num int32) (
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return rtTickerFromGetPB(resp.GetS2C()), result(resp)
+		return rtTickerFromGetPB(resp.GetS2C()), protocol.Error(resp)
 	}
 }
 

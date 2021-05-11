@@ -13,40 +13,37 @@ const (
 )
 
 // 实时分时回调
-func (api *FutuAPI) UpdateRT(ctx context.Context) (*UpdateRTChan, error) {
-	ch := UpdateRTChan{
-		RT:  make(chan *RTData),
-		Err: make(chan error),
-	}
-	if err := api.update(ProtoIDQotUpdateRT, &ch); err != nil {
+func (api *FutuAPI) UpdateRT(ctx context.Context) (<-chan *UpdateRTResp, error) {
+	ch := make(updateRTChan)
+	if err := api.update(ProtoIDQotUpdateRT, ch); err != nil {
 		return nil, err
 	}
-	return &ch, nil
+	return ch, nil
 }
 
-type UpdateRTChan struct {
-	RT  chan *RTData
-	Err chan error
+type UpdateRTResp struct {
+	RT  *RTData
+	Err error
 }
 
-var _ protocol.RespChan = (*UpdateRTChan)(nil)
+type updateRTChan chan *UpdateRTResp
 
-func (ch *UpdateRTChan) Send(b []byte) error {
+var _ protocol.RespChan = make(updateRTChan)
+
+func (ch updateRTChan) Send(b []byte) error {
 	var resp qotupdatert.Response
 	if err := proto.Unmarshal(b, &resp); err != nil {
 		return err
 	}
-	if err := result(&resp); err != nil {
-		ch.Err <- err
-	} else {
-		ch.RT <- rtDataFromUpdatePB(resp.GetS2C())
+	ch <- &UpdateRTResp{
+		RT:  rtDataFromUpdatePB(resp.GetS2C()),
+		Err: protocol.Error(&resp),
 	}
 	return nil
 }
 
-func (ch *UpdateRTChan) Close() {
-	close(ch.RT)
-	close(ch.Err)
+func (ch updateRTChan) Close() {
+	close(ch)
 }
 
 func rtDataFromUpdatePB(pb *qotupdatert.S2C) *RTData {

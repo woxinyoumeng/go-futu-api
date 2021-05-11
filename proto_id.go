@@ -28,7 +28,7 @@ const (
 	ProtoIDQotGetPlateSecurity     = 3205 //Qot_GetPlateSecurity	获取板块下的股票
 	ProtoIDQotGetReference         = 3206 //Qot_GetReference	获取正股相关股票
 	ProtoIDQotGetHoldingChangeList = 3208 //Qot_GetHoldingChangeList	获取持股变化列表
-	ProtoIDQotGetOptionChain       = 3209 //Qot_GetOptionChain	获取期权链
+
 	ProtoIDQotGetWarrant           = 3210 //Qot_GetWarrant	获取窝轮
 	ProtoIDQotGetUserSecurity      = 3213 //Qot_GetUserSecurity	获取自选股分组下的股票
 	ProtoIDQotModifyUserSecurity   = 3214 //Qot_ModifyUserSecurity	修改自选股分组下的股票

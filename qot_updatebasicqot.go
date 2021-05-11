@@ -13,38 +13,35 @@ const (
 )
 
 // 实时报价回调
-func (api *FutuAPI) UpdateBasicQot(ctx context.Context) (*UpdateBasicQotChan, error) {
-	ch := UpdateBasicQotChan{
-		BasicQot: make(chan []*BasicQot),
-		Err:      make(chan error),
-	}
-	if err := api.update(ProtoIDQotUpdateBasicQot, &ch); err != nil {
+func (api *FutuAPI) UpdateBasicQot(ctx context.Context) (<-chan *UpdateBasicQotResp, error) {
+	ch := make(updateBasicQotChan)
+	if err := api.update(ProtoIDQotUpdateBasicQot, ch); err != nil {
 		return nil, err
 	}
-	return &ch, nil
+	return ch, nil
 }
 
-type UpdateBasicQotChan struct {
-	BasicQot chan []*BasicQot
-	Err      chan error
+type UpdateBasicQotResp struct {
+	BasicQot []*BasicQot //股票基本行情
+	Err      error
 }
 
-var _ protocol.RespChan = (*UpdateBasicQotChan)(nil)
+type updateBasicQotChan chan *UpdateBasicQotResp
 
-func (ch *UpdateBasicQotChan) Send(b []byte) error {
+var _ protocol.RespChan = make(updateBasicQotChan)
+
+func (ch updateBasicQotChan) Send(b []byte) error {
 	var resp qotupdatebasicqot.Response
 	if err := proto.Unmarshal(b, &resp); err != nil {
 		return err
 	}
-	if err := result(&resp); err != nil {
-		ch.Err <- err
-	} else {
-		ch.BasicQot <- basicQotListFromPB(resp.GetS2C().GetBasicQotList())
+	ch <- &UpdateBasicQotResp{
+		BasicQot: basicQotListFromPB(resp.GetS2C().GetBasicQotList()),
+		Err:      protocol.Error(&resp),
 	}
 	return nil
 }
 
-func (ch *UpdateBasicQotChan) Close() {
-	close(ch.BasicQot)
-	close(ch.Err)
+func (ch updateBasicQotChan) Close() {
+	close(ch)
 }

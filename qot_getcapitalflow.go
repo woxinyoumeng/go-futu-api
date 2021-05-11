@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetcapitalflow"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -12,12 +13,15 @@ const (
 
 //获取资金流向
 func (api *FutuAPI) GetCapitalFlow(ctx context.Context, security *Security) (*CapitalFlow, error) {
-	ch := make(qotgetcapitalflow.ResponseChan)
-	if err := api.get(ProtoIDQotGetCapitalFlow, &qotgetcapitalflow.Request{
+	// 请求参数
+	req := qotgetcapitalflow.Request{
 		C2S: &qotgetcapitalflow.C2S{
 			Security: security.pb(),
 		},
-	}, ch); err != nil {
+	}
+	// 发送请求，同步返回结果
+	ch := make(qotgetcapitalflow.ResponseChan)
+	if err := api.get(ProtoIDQotGetCapitalFlow, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -27,7 +31,7 @@ func (api *FutuAPI) GetCapitalFlow(ctx context.Context, security *Security) (*Ca
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return capitalFlowFromPB(resp.GetS2C()), result(resp)
+		return capitalFlowFromPB(resp.GetS2C()), protocol.Error(resp)
 	}
 }
 

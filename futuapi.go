@@ -28,12 +28,14 @@ type FutuAPI struct {
 	// 连接配置，通过方法设置，不设置默认为零值
 	clientVer  int32
 	clientID   string
-	protoFmt   common.ProtoFmt
-	connID     uint64
 	recvNotify bool
+	encAlgo    common.PacketEncAlgo
+	protoFmt   common.ProtoFmt
 
 	// TCP连接，连接后设置
-	conn *tcp.Conn
+	conn   *tcp.Conn
+	connID uint64
+	userID uint64
 	// 数据接收注册表
 	reg *protocol.Registry
 
@@ -69,8 +71,16 @@ func (api *FutuAPI) ConnID() uint64 {
 	return api.connID
 }
 
+func (api *FutuAPI) UserID() uint64 {
+	return api.userID
+}
+
 func (api *FutuAPI) SetRecvNotify(recv bool) {
 	api.recvNotify = recv
+}
+
+func (api *FutuAPI) SetEncAlgo(algo common.PacketEncAlgo) {
+	api.encAlgo = algo
 }
 
 // 连接FutuOpenD
@@ -80,17 +90,13 @@ func (api *FutuAPI) Connect(ctx context.Context, address string) error {
 		return err
 	}
 	api.conn = conn
-	resp, err := api.initConnect(ctx, &initconnect.C2S{
-		ClientVer:    &api.clientVer,
-		ClientID:     &api.clientID,
-		PushProtoFmt: (*int32)(&api.protoFmt),
-		RecvNotify:   &api.recvNotify,
-	})
+	resp, err := api.initConnect(ctx, api.clientVer, api.clientID, api.recvNotify, api.encAlgo, api.protoFmt, "golang")
 	if err != nil {
 		return err
 	}
-	api.connID = resp.GetConnID()
-	if d := resp.GetKeepAliveInterval(); d > 0 {
+	api.connID = resp.ConnID
+	api.userID = resp.LoginUserID
+	if d := resp.KeepAliveInterval; d > 0 {
 		api.ticker = time.NewTicker(time.Second * time.Duration(d))
 		go api.heartBeat(ctx)
 	}
@@ -148,18 +154,6 @@ func (api *FutuAPI) update(proto uint32, out protocol.RespChan) error {
 	return nil
 }
 
-type ret interface {
-	GetRetType() int32
-	GetRetMsg() string
-}
-
-func result(r ret) error {
-	if common.RetType(r.GetRetType()) != common.RetType_RetType_Succeed {
-		return errors.New(r.GetRetMsg())
-	}
-	return nil
-}
-
 const (
 	ProtoIDInitConnect    = 1001 //InitConnect	初始化连接
 	ProtoIDGetGlobalState = 1002 //GetGlobalState	获取全局状态
@@ -167,10 +161,21 @@ const (
 	ProtoIDKeepAlive      = 1004 //KeepAlive	保活心跳
 )
 
-// InitConnect 初始化连接
-func (api *FutuAPI) initConnect(ctx context.Context, req *initconnect.C2S) (*initconnect.S2C, error) {
-	ch := make(initConnectChan)
-	if err := api.get(ProtoIDInitConnect, &initconnect.Request{C2S: req}, ch); err != nil {
+// 初始化连接
+func (api *FutuAPI) initConnect(ctx context.Context, clientVer int32, clientID string, recvNotify bool,
+	encAlgo common.PacketEncAlgo, protoFmt common.ProtoFmt, lang string) (*initConnectResp, error) {
+	// 请求参数
+	req := initconnect.Request{C2S: &initconnect.C2S{
+		ClientVer:           &clientVer,
+		ClientID:            &clientID,
+		RecvNotify:          &recvNotify,
+		PacketEncAlgo:       (*int32)(&encAlgo),
+		PushProtoFmt:        (*int32)(&protoFmt),
+		ProgrammingLanguage: &lang,
+	}}
+	// 发送请求，同步返回结果
+	ch := make(initconnect.ResponseChan)
+	if err := api.get(ProtoIDInitConnect, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -180,33 +185,42 @@ func (api *FutuAPI) initConnect(ctx context.Context, req *initconnect.C2S) (*ini
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return resp.GetS2C(), result(resp)
+		return initConnectRespFromPB(resp.GetS2C()), protocol.Error(resp)
 	}
 }
 
-type initConnectChan chan *initconnect.Response
-
-var _ protocol.RespChan = make(initConnectChan)
-
-func (ch initConnectChan) Send(b []byte) error {
-	var resp initconnect.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
+type initConnectResp struct {
+	ServerVer         int32  //FutuOpenD 的版本号
+	LoginUserID       uint64 //FutuOpenD 登陆的牛牛用户 ID
+	ConnID            uint64 //此连接的连接 ID，连接的唯一标识
+	ConnAESKey        string //此连接后续 AES 加密通信的 Key，固定为16字节长字符串
+	KeepAliveInterval int32  //心跳保活间隔
+	AESCBCiv          string //AES 加密通信 CBC 加密模式的 iv，固定为16字节长字符串
 }
 
-func (ch initConnectChan) Close() {
-	close(ch)
+func initConnectRespFromPB(pb *initconnect.S2C) *initConnectResp {
+	if pb == nil {
+		return nil
+	}
+	return &initConnectResp{
+		ServerVer:         pb.GetServerVer(),
+		LoginUserID:       pb.GetLoginUserID(),
+		ConnID:            pb.GetConnID(),
+		ConnAESKey:        pb.GetConnAESKey(),
+		KeepAliveInterval: pb.GetKeepAliveInterval(),
+		AESCBCiv:          pb.GetAesCBCiv(),
+	}
 }
 
 // KeepAlive 保活心跳
 func (api *FutuAPI) keepAlive(ctx context.Context, t int64) (int64, error) {
-	ch := make(keepAliveChan)
-	if err := api.get(ProtoIDKeepAlive, &keepalive.Request{C2S: &keepalive.C2S{
+	// 请求参数
+	req := keepalive.Request{C2S: &keepalive.C2S{
 		Time: &t,
-	}}, ch); err != nil {
+	}}
+	// 发送请求，同步返回结果
+	ch := make(keepalive.ResponseChan)
+	if err := api.get(ProtoIDKeepAlive, &req, ch); err != nil {
 		return 0, err
 	}
 	select {
@@ -216,34 +230,19 @@ func (api *FutuAPI) keepAlive(ctx context.Context, t int64) (int64, error) {
 		if !ok {
 			return 0, ErrChannelClosed
 		}
-		return resp.GetS2C().GetTime(), result(resp)
+		return resp.GetS2C().GetTime(), protocol.Error(resp)
 	}
-}
-
-type keepAliveChan chan *keepalive.Response
-
-var _ protocol.RespChan = make(keepAliveChan)
-
-func (ch keepAliveChan) Send(b []byte) error {
-	var resp keepalive.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	ch <- &resp
-	return nil
-}
-
-func (ch keepAliveChan) Close() {
-	close(ch)
 }
 
 // 获取全局状态
 func (api *FutuAPI) GetGlobalState(ctx context.Context) (*GlobalState, error) {
-	ch := make(getGlobalStateChan)
-	var userID uint64
-	if err := api.get(ProtoIDGetGlobalState, &getglobalstate.Request{C2S: &getglobalstate.C2S{
-		UserID: &userID,
-	}}, ch); err != nil {
+	// 请求参数
+	req := getglobalstate.Request{C2S: &getglobalstate.C2S{
+		UserID: &api.userID,
+	}}
+	// 发送请求，同步返回结果
+	ch := make(getglobalstate.ResponseChan)
+	if err := api.get(ProtoIDGetGlobalState, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -253,7 +252,7 @@ func (api *FutuAPI) GetGlobalState(ctx context.Context) (*GlobalState, error) {
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return globalStateFromPB(resp.GetS2C()), result(resp)
+		return globalStateFromPB(resp.GetS2C()), protocol.Error(resp)
 	}
 }
 
@@ -270,7 +269,7 @@ type GlobalState struct {
 	ServerBuildNo  int32
 	Time           int64
 	LocalTime      float64
-	ProgramStatus  *CommonProgramStatus
+	ProgramStatus  *ProgramStatus
 	QotSvrIpAddr   string
 	TrdSvrIpAddr   string
 	ConnID         uint64
@@ -293,40 +292,45 @@ func globalStateFromPB(resp *getglobalstate.S2C) *GlobalState {
 		ServerBuildNo:  resp.GetServerBuildNo(),
 		Time:           resp.GetTime(),
 		LocalTime:      resp.GetLocalTime(),
-		ProgramStatus:  commonProgramStatusFromPB(resp.GetProgramStatus()),
+		ProgramStatus:  programStatusFromPB(resp.GetProgramStatus()),
 		QotSvrIpAddr:   resp.GetQotSvrIpAddr(),
 		TrdSvrIpAddr:   resp.GetTrdSvrIpAddr(),
 		ConnID:         resp.GetConnID(),
 	}
 }
 
-type getGlobalStateChan chan *getglobalstate.Response
+// 系统推送通知
+func (api *FutuAPI) SysNotify(ctx context.Context) (<-chan *SysNotifyResp, error) {
+	ch := make(notifyChan)
+	if err := api.update(ProtoIDNotify, ch); err != nil {
+		return nil, err
+	}
+	return ch, nil
+}
 
-var _ protocol.RespChan = make(getGlobalStateChan)
+type SysNotifyResp struct {
+	Notification *Notification
+	Err          error
+}
 
-func (ch getGlobalStateChan) Send(b []byte) error {
-	var resp getglobalstate.Response
+type notifyChan chan *SysNotifyResp
+
+var _ protocol.RespChan = make(notifyChan)
+
+func (ch notifyChan) Send(b []byte) error {
+	var resp notify.Response
 	if err := proto.Unmarshal(b, &resp); err != nil {
 		return err
 	}
-	ch <- &resp
+	ch <- &SysNotifyResp{
+		Notification: notificationFromPB(resp.GetS2C()),
+		Err:          protocol.Error(&resp),
+	}
 	return nil
 }
 
-func (ch getGlobalStateChan) Close() {
+func (ch notifyChan) Close() {
 	close(ch)
-}
-
-// 系统推送通知
-func (api *FutuAPI) SysNotify(ctx context.Context) (*NotifyChan, error) {
-	ch := NotifyChan{
-		Notification: make(chan *Notification),
-		Err:          make(chan error),
-	}
-	if err := api.update(ProtoIDNotify, &ch); err != nil {
-		return nil, err
-	}
-	return &ch, nil
 }
 
 type Notification struct {
@@ -370,7 +374,7 @@ func gtwEventFromPB(pb *notify.GtwEvent) *GtwEvent {
 }
 
 type NotifyProgramStatus struct {
-	ProgramStatus *CommonProgramStatus //*当前程序状态
+	ProgramStatus *ProgramStatus //*当前程序状态
 }
 
 func notifyProgramStatusFromPB(pb *notify.ProgramStatus) *NotifyProgramStatus {
@@ -378,7 +382,7 @@ func notifyProgramStatusFromPB(pb *notify.ProgramStatus) *NotifyProgramStatus {
 		return nil
 	}
 	return &NotifyProgramStatus{
-		ProgramStatus: commonProgramStatusFromPB(pb.GetProgramStatus()),
+		ProgramStatus: programStatusFromPB(pb.GetProgramStatus()),
 	}
 }
 
@@ -450,29 +454,4 @@ func apiQuotaFromPB(pb *notify.APIQuota) *APIQuota {
 		SubQuota:       pb.GetSubQuota(),
 		HistoryKLQuota: pb.GetHistoryKLQuota(),
 	}
-}
-
-type NotifyChan struct {
-	Notification chan *Notification
-	Err          chan error
-}
-
-var _ protocol.RespChan = (*NotifyChan)(nil)
-
-func (ch *NotifyChan) Send(b []byte) error {
-	var resp notify.Response
-	if err := proto.Unmarshal(b, &resp); err != nil {
-		return err
-	}
-	if err := result(&resp); err != nil {
-		ch.Err <- err
-	} else {
-		ch.Notification <- notificationFromPB(resp.GetS2C())
-	}
-	return nil
-}
-
-func (ch *NotifyChan) Close() {
-	close(ch.Notification)
-	close(ch.Err)
 }

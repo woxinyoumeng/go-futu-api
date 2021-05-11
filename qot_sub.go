@@ -5,6 +5,7 @@ import (
 
 	"github.com/hurisheng/go-futu-api/pb/qotcommon"
 	"github.com/hurisheng/go-futu-api/pb/qotsub"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -30,7 +31,8 @@ func (api *FutuAPI) UnsubscribeAll(ctx context.Context) error {
 
 func (api *FutuAPI) qotSub(ctx context.Context, isSub bool, securities []*Security, subTypes []qotcommon.SubType, rehabTypes []qotcommon.RehabType,
 	isRegPush bool, isFirstPush bool, isSubOrderBookDetail bool, isExtendedTime bool, isUnsubAll bool) error {
-	r := qotsub.Request{
+	// 拼装参数
+	req := qotsub.Request{
 		C2S: &qotsub.C2S{
 			SecurityList:         securityList(securities).pb(),
 			IsSubOrUnSub:         &isSub,
@@ -42,19 +44,20 @@ func (api *FutuAPI) qotSub(ctx context.Context, isSub bool, securities []*Securi
 		},
 	}
 	if subTypes != nil {
-		r.C2S.SubTypeList = make([]int32, len(subTypes))
+		req.C2S.SubTypeList = make([]int32, len(subTypes))
 		for i, v := range subTypes {
-			r.C2S.SubTypeList[i] = int32(v)
+			req.C2S.SubTypeList[i] = int32(v)
 		}
 	}
 	if rehabTypes != nil {
-		r.C2S.RegPushRehabTypeList = make([]int32, len(rehabTypes))
+		req.C2S.RegPushRehabTypeList = make([]int32, len(rehabTypes))
 		for i, v := range rehabTypes {
-			r.C2S.RegPushRehabTypeList[i] = int32(v)
+			req.C2S.RegPushRehabTypeList[i] = int32(v)
 		}
 	}
+	// 发送请求，同步返回结果
 	ch := make(qotsub.ResponseChan)
-	if err := api.get(ProtoIDQotSub, &r, ch); err != nil {
+	if err := api.get(ProtoIDQotSub, &req, ch); err != nil {
 		return err
 	}
 	select {
@@ -64,6 +67,6 @@ func (api *FutuAPI) qotSub(ctx context.Context, isSub bool, securities []*Securi
 		if !ok {
 			return ErrChannelClosed
 		}
-		return result(resp)
+		return protocol.Error(resp)
 	}
 }

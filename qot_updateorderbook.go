@@ -13,40 +13,37 @@ const (
 )
 
 // 实时摆盘回调
-func (api *FutuAPI) UpdateOrderBook(ctx context.Context) (*UpdateOrderBookChan, error) {
-	ch := UpdateOrderBookChan{
-		OrderBook: make(chan *RTOrderBook),
-		Err:       make(chan error),
-	}
-	if err := api.update(ProtoIDQotUpdateOrderBook, &ch); err != nil {
+func (api *FutuAPI) UpdateOrderBook(ctx context.Context) (<-chan *UpdateOrderBookResp, error) {
+	ch := make(updateOrderBookChan)
+	if err := api.update(ProtoIDQotUpdateOrderBook, ch); err != nil {
 		return nil, err
 	}
-	return &ch, nil
+	return ch, nil
 }
 
-type UpdateOrderBookChan struct {
-	OrderBook chan *RTOrderBook
-	Err       chan error
+type UpdateOrderBookResp struct {
+	OrderBook *RTOrderBook
+	Err       error
 }
 
-var _ protocol.RespChan = (*UpdateOrderBookChan)(nil)
+type updateOrderBookChan chan *UpdateOrderBookResp
 
-func (ch *UpdateOrderBookChan) Send(b []byte) error {
+var _ protocol.RespChan = make(updateOrderBookChan)
+
+func (ch updateOrderBookChan) Send(b []byte) error {
 	var resp qotupdateorderbook.Response
 	if err := proto.Unmarshal(b, &resp); err != nil {
 		return err
 	}
-	if err := result(&resp); err != nil {
-		ch.Err <- err
-	} else {
-		ch.OrderBook <- rtOrderBookFromUpdatePB(resp.GetS2C())
+	ch <- &UpdateOrderBookResp{
+		OrderBook: rtOrderBookFromUpdatePB(resp.GetS2C()),
+		Err:       protocol.Error(&resp),
 	}
 	return nil
 }
 
-func (ch *UpdateOrderBookChan) Close() {
-	close(ch.OrderBook)
-	close(ch.Err)
+func (ch updateOrderBookChan) Close() {
+	close(ch)
 }
 
 func rtOrderBookFromUpdatePB(pb *qotupdateorderbook.S2C) *RTOrderBook {

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetownerplate"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -12,12 +13,14 @@ const (
 
 // 获取股票所属板块
 func (api *FutuAPI) GetOwnerPlate(ctx context.Context, securities []*Security) ([]*OwnerPlate, error) {
-	ch := make(qotgetownerplate.ResponseChan)
-	if err := api.get(ProtoIDQotGetOwnerPlate, &qotgetownerplate.Request{
+	// 请求数据
+	req := qotgetownerplate.Request{
 		C2S: &qotgetownerplate.C2S{
 			SecurityList: securityList(securities).pb(),
 		},
-	}, ch); err != nil {
+	}
+	ch := make(qotgetownerplate.ResponseChan)
+	if err := api.get(ProtoIDQotGetOwnerPlate, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -27,7 +30,7 @@ func (api *FutuAPI) GetOwnerPlate(ctx context.Context, securities []*Security) (
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return ownerPlateListFromPB(resp.GetS2C().GetOwnerPlateList()), result(resp)
+		return ownerPlateListFromPB(resp.GetS2C().GetOwnerPlateList()), protocol.Error(resp)
 	}
 }
 

@@ -135,6 +135,18 @@ func (h *handler) Handle() {
 	log.Printf("finish: proto %v serial %v", h.proto, h.serial)
 }
 
+type Response interface {
+	GetRetType() int32
+	GetRetMsg() string
+}
+
+func Error(r Response) error {
+	if r.GetRetType() != 0 {
+		return errors.New(r.GetRetMsg())
+	}
+	return nil
+}
+
 // Registry 接收数据处理器注册表
 type Registry struct {
 	m  map[uint32]worker

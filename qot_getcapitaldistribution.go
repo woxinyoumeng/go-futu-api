@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hurisheng/go-futu-api/pb/qotgetcapitaldistribution"
+	"github.com/hurisheng/go-futu-api/protocol"
 )
 
 const (
@@ -12,8 +13,15 @@ const (
 
 // 获取资金分布
 func (api *FutuAPI) GetCapitalDistribution(ctx context.Context, security *Security) (*CapitalDistribution, error) {
+	// 请求数据
+	req := qotgetcapitaldistribution.Request{
+		C2S: &qotgetcapitaldistribution.C2S{
+			Security: security.pb(),
+		},
+	}
+	// 发送请求，同步返回结果
 	ch := make(qotgetcapitaldistribution.ResponseChan)
-	if err := api.get(ProtoIDQotGetCapitalDistribution, &qotgetcapitaldistribution.Request{}, ch); err != nil {
+	if err := api.get(ProtoIDQotGetCapitalDistribution, &req, ch); err != nil {
 		return nil, err
 	}
 	select {
@@ -23,7 +31,7 @@ func (api *FutuAPI) GetCapitalDistribution(ctx context.Context, security *Securi
 		if !ok {
 			return nil, ErrChannelClosed
 		}
-		return capitalDistributionFromPB(resp.GetS2C()), result(resp)
+		return capitalDistributionFromPB(resp.GetS2C()), protocol.Error(resp)
 	}
 }
 
