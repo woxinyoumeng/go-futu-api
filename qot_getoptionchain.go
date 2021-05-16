@@ -97,29 +97,29 @@ func optionItemListFromPB(pb []*qotgetoptionchain.OptionItem) []*OptionItem {
 	return list
 }
 
-type DataFilterItem struct {
+type FilterDouble struct {
 	Value float64
 }
 
 type DataFilter struct {
-	ImpliedVolatilityMin *DataFilterItem //隐含波动率过滤
-	ImpliedVolatilityMax *DataFilterItem
-	DeltaMin             *DataFilterItem
-	DeltaMax             *DataFilterItem
-	GammaMin             *DataFilterItem
-	GammaMax             *DataFilterItem
-	VegaMin              *DataFilterItem
-	VegaMax              *DataFilterItem
-	ThetaMin             *DataFilterItem
-	ThetaMax             *DataFilterItem
-	RhoMin               *DataFilterItem
-	RhoMax               *DataFilterItem
-	NetOpenInterestMin   *DataFilterItem //净未平仓合约数过滤
-	NetOpenInterestMax   *DataFilterItem
-	OpenInterestMin      *DataFilterItem //未平仓合约数过滤
-	OpenInterestMax      *DataFilterItem
-	VolMin               *DataFilterItem //成交量过滤
-	VolMax               *DataFilterItem
+	ImpliedVolatilityMin *FilterDouble //隐含波动率过滤
+	ImpliedVolatilityMax *FilterDouble
+	DeltaMin             *FilterDouble
+	DeltaMax             *FilterDouble
+	GammaMin             *FilterDouble
+	GammaMax             *FilterDouble
+	VegaMin              *FilterDouble
+	VegaMax              *FilterDouble
+	ThetaMin             *FilterDouble
+	ThetaMax             *FilterDouble
+	RhoMin               *FilterDouble
+	RhoMax               *FilterDouble
+	NetOpenInterestMin   *FilterDouble //净未平仓合约数过滤
+	NetOpenInterestMax   *FilterDouble
+	OpenInterestMin      *FilterDouble //未平仓合约数过滤
+	OpenInterestMax      *FilterDouble
+	VolMin               *FilterDouble //成交量过滤
+	VolMax               *FilterDouble
 }
 
 func (f *DataFilter) pb() *qotgetoptionchain.DataFilter {

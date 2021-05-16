@@ -655,6 +655,17 @@ func securityStaticInfoFromPB(pb *qotcommon.SecurityStaticInfo) *SecurityStaticI
 	}
 }
 
+func securityStaticInfoListFromPB(pb []*qotcommon.SecurityStaticInfo) []*SecurityStaticInfo {
+	if pb == nil {
+		return nil
+	}
+	list := make([]*SecurityStaticInfo, len(pb))
+	for i, v := range pb {
+		list[i] = securityStaticInfoFromPB(v)
+	}
+	return list
+}
+
 // 证券基本静态信息
 type SecurityStaticBasic struct {
 	Security      *Security              //股票
