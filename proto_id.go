@@ -23,17 +23,12 @@ const (
 
 	ProtoIDQotRequestHistoryKLQuota = 3104 //Qot_RequestHistoryKLQuota	获取历史 K 线额度
 
-	ProtoIDQotGetStaticInfo    = 3202 //Qot_GetStaticInfo	获取股票静态信息
-	ProtoIDQotGetPlateSet      = 3204 //Qot_GetPlateSet	获取板块集合下的板块
-	ProtoIDQotGetPlateSecurity = 3205 //Qot_GetPlateSecurity	获取板块下的股票
-
 	ProtoIDQotGetHoldingChangeList = 3208 //Qot_GetHoldingChangeList	获取持股变化列表
 
 	ProtoIDQotGetUserSecurity    = 3213 //Qot_GetUserSecurity	获取自选股分组下的股票
 	ProtoIDQotModifyUserSecurity = 3214 //Qot_ModifyUserSecurity	修改自选股分组下的股票
-	ProtoIDQotStockFilter        = 3215 //Qot_StockFilter	获取条件选股
-	ProtoIDQotGetIpoList         = 3217 //Qot_GetIpoList	获取新股
 
+	ProtoIDQotGetIpoList           = 3217 //Qot_GetIpoList	获取新股
 	ProtoIDQotRequestTradeDate     = 3219 //Qot_RequestTradeDate	获取市场交易日，在线拉取不在本地计算
 	ProtoIDQotSetPriceReminder     = 3220 //Qot_SetPriceReminder	设置到价提醒
 	ProtoIDQotGetPriceReminder     = 3221 //Qot_GetPriceReminder	获取到价提醒

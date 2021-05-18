@@ -127,6 +127,8 @@ func (api *FutuAPI) heartBeat(ctx context.Context) {
 	}
 }
 
+type protoID uint32
+
 func (api *FutuAPI) get(proto uint32, req proto.Message, out protocol.RespChan) error {
 	// 递增serial
 	api.mu.Lock()

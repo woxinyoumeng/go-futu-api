@@ -101,6 +101,13 @@ type FilterDouble struct {
 	Value float64
 }
 
+func (d *FilterDouble) pb() *float64 {
+	if d == nil {
+		return nil
+	}
+	return &d.Value
+}
+
 type DataFilter struct {
 	ImpliedVolatilityMin *FilterDouble //隐含波动率过滤
 	ImpliedVolatilityMax *FilterDouble
