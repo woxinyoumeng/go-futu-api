@@ -47,4 +47,11 @@ func TestConnect(t *testing.T) {
 	} else {
 		t.Error(sub)
 	}
+
+	secs, err := api.GetUserSecurity(context.Background(), "全部")
+	if err != nil {
+		t.Error(err)
+	} else {
+		t.Error(secs)
+	}
 }
