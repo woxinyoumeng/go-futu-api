@@ -50,8 +50,9 @@ type FutuAPI struct {
 // NewFutuAPI 创建API对象，并启动goroutine进行发送保活心跳.
 func NewFutuAPI() *FutuAPI {
 	return &FutuAPI{
-		reg:  protocol.NewRegistry(),
-		done: make(chan struct{}),
+		reg:    protocol.NewRegistry(),
+		done:   make(chan struct{}),
+		serial: 1,
 	}
 }
 
@@ -81,6 +82,14 @@ func (api *FutuAPI) SetRecvNotify(recv bool) {
 
 func (api *FutuAPI) SetEncAlgo(algo common.PacketEncAlgo) {
 	api.encAlgo = algo
+}
+
+func (api *FutuAPI) serialNo() uint32 {
+	// 递增serial
+	api.mu.Lock()
+	defer api.mu.Unlock()
+	api.serial++
+	return api.serial
 }
 
 // 连接FutuOpenD
@@ -128,21 +137,19 @@ func (api *FutuAPI) heartBeat(ctx context.Context) {
 }
 
 func (api *FutuAPI) get(proto uint32, req proto.Message, out protocol.RespChan) error {
-	// 递增serial
-	api.mu.Lock()
-	defer api.mu.Unlock()
+	// 获取serial
+	se := api.serialNo()
 	// 在registry注册get channel
-	if err := api.reg.AddGetChan(proto, api.serial+1, out); err != nil {
+	if err := api.reg.AddGetChan(proto, se, out); err != nil {
 		return err
 	}
 	// 向服务器发送req
-	if err := api.conn.Send(protocol.NewEncoder(proto, api.serial+1, req)); err != nil {
-		if err := api.reg.RemoveChan(proto, api.serial+1); err != nil {
+	if err := api.conn.Send(protocol.NewEncoder(proto, se, req)); err != nil {
+		if err := api.reg.RemoveChan(proto, se); err != nil {
 			return err
 		}
 		return err
 	}
-	api.serial++
 	return nil
 }
 
