@@ -13,8 +13,7 @@ const (
 )
 
 // 下单
-func (api *FutuAPI) PlaceOrder(ctx context.Context, header *TrdHeader, trdSide trdcommon.TrdSide, orderType trdcommon.OrderType, code string, qty float64, price float64,
-	adjustPrice bool, sideAndLimit float64, secMarket trdcommon.TrdSecMarket, remark string, timeInForce trdcommon.TimeInForce, fillOutsideRTH bool) (uint64, error) {
+func (api *FutuAPI) PlaceOrder(ctx context.Context, header *TrdHeader, trdSide trdcommon.TrdSide, orderType trdcommon.OrderType, code string, qty float64, price float64, adjustPrice bool, sideAndLimit float64, secMarket trdcommon.TrdSecMarket, remark string, timeInForce trdcommon.TimeInForce, fillOutsideRTH bool) (uint64, error) {
 	req := trdplaceorder.Request{
 		C2S: &trdplaceorder.C2S{
 			PacketID:           api.packetID().pb(),
@@ -27,6 +26,7 @@ func (api *FutuAPI) PlaceOrder(ctx context.Context, header *TrdHeader, trdSide t
 			AdjustSideAndLimit: &sideAndLimit,
 			Remark:             &remark,
 			FillOutsideRTH:     &fillOutsideRTH,
+			Price:              &price,
 		},
 	}
 	if secMarket != 0 {
